@@ -763,10 +763,10 @@ class Response(object):
         # OTHERWISE decode only the complete body and return the resulting text.
 
         # Try charset from content-type
-        content = None
         encoding = self.encoding
+        content = self.content
 
-        if not self.content:
+        if not content:
             return str('')
 
         # Fallback to auto-detected encoding.
@@ -775,7 +775,7 @@ class Response(object):
 
         # Decode unicode from given encoding.
         try:
-            content = str(self.content, encoding, errors='replace')
+            content = str(content, encoding, errors='replace')
         except (LookupError, TypeError):
             # A LookupError is raised if the encoding was not found which could
             # indicate a misspelling or similar mistake.
@@ -783,7 +783,7 @@ class Response(object):
             # A TypeError can be raised if encoding is None
             #
             # So we try blindly encoding.
-            content = str(self.content, errors='replace')
+            content = str(content, errors='replace')
 
         return content
 
