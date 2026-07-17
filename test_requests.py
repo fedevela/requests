@@ -25,6 +25,8 @@ from requests.structures import CaseInsensitiveDict
 from requests.sessions import SessionRedirectMixin
 from requests.models import urlencode
 from requests.hooks import default_hooks
+from requests.compat import IncompleteRead
+from requests.packages.urllib3.exceptions import DecodeError
 
 try:
     import StringIO
@@ -838,23 +840,85 @@ class RequestsTestCase(unittest.TestCase):
 
     def test_SOCK_007_iter_content_incomplete_read_preserves_chunked_encoding_error_translation(self):
         """SOCK-007: preserve the established IncompleteRead translation."""
-        assert True
+        failure = IncompleteRead(b'partial body', 8)
+
+        class BrokenStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                raise failure
+                yield
+
+        response = requests.Response()
+        response.raw = BrokenStream()
+
+        with pytest.raises(requests.exceptions.ChunkedEncodingError) as exc_info:
+            next(response.iter_content())
+
+        assert exc_info.value.args[0] is failure
 
     def test_SOCK_007_iter_content_decode_failure_preserves_content_decoding_error_translation(self):
         """SOCK-007: preserve the established DecodeError translation."""
-        assert True
+        failure = DecodeError('failed to decode response body')
+
+        class BrokenStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                raise failure
+                yield
+
+        response = requests.Response()
+        response.raw = BrokenStream()
+
+        with pytest.raises(requests.exceptions.ContentDecodingError) as exc_info:
+            next(response.iter_content())
+
+        assert exc_info.value.args[0] is failure
 
     def test_SOCK_008_iter_content_successful_body_yields_established_chunks_and_completes(self):
         """SOCK-008: preserve successful streaming results and completion."""
-        assert True
+        expected_chunks = [b'first', b'second', b'third']
+
+        class SuccessfulStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                assert chunk_size == 6
+                assert decode_content is True
+                for chunk in expected_chunks:
+                    yield chunk
+
+        response = requests.Response()
+        response.raw = SuccessfulStream()
+        chunks = response.iter_content(chunk_size=6)
+
+        assert [next(chunks), next(chunks), next(chunks)] == expected_chunks
+        with pytest.raises(StopIteration):
+            next(chunks)
+        assert response._content_consumed is True
 
     def test_SOCK_008_content_successful_body_returns_established_complete_bytes(self):
         """SOCK-008: preserve successful complete-content buffering."""
-        assert True
+        class SuccessfulStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                yield b'complete '
+                yield b'body'
+
+        response = requests.Response()
+        response.raw = SuccessfulStream()
+
+        assert response.content == b'complete body'
+        assert response._content == b'complete body'
+        assert response._content_consumed is True
 
     def test_SOCK_008_text_successful_body_returns_established_decoded_text(self):
         """SOCK-008: preserve successful content-backed text decoding."""
-        assert True
+        class SuccessfulStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                yield b'caf\xc3\xa9 '
+                yield b'body'
+
+        response = requests.Response()
+        response.raw = SuccessfulStream()
+        response.encoding = 'utf-8'
+
+        assert response.text == u('caf\xe9 body')
+        assert response.content == b'caf\xc3\xa9 body'
 
     def test_request_and_response_are_pickleable(self):
         r = requests.get(httpbin('get'))
