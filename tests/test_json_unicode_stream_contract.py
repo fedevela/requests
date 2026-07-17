@@ -179,9 +179,13 @@ def test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered():
 
 def test_JSON_007_given_complete_text_accessing_response_text_returns_unicode_str():
     """JSON-007: complete response text is exposed as a Unicode str."""
-    assert True
+    response = buffered_json_response()
+
+    assert isinstance(response.text, str)
 
 
 def test_JSON_007_given_complete_text_accessing_response_text_returns_all_content_once():
     """JSON-007: response.text has no missing or duplicated content."""
-    assert True
+    response = buffered_json_response()
+
+    assert response.text == JSON_TEXT
