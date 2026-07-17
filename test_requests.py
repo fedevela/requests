@@ -24,7 +24,9 @@ from requests.exceptions import (ConnectionError, ConnectTimeout,
                                  InvalidSchema, InvalidURL, MissingSchema,
                                  ReadTimeout, Timeout, RetryError)
 from requests.models import PreparedRequest
-from requests.packages.urllib3.exceptions import DecodeError
+from requests.packages.urllib3.exceptions import (
+    ConnectTimeoutError, DecodeError, MaxRetryError, ReadTimeoutError,
+    TimeoutError as Urllib3TimeoutError)
 from requests.structures import CaseInsensitiveDict
 from requests.sessions import SessionRedirectMixin
 from requests.models import urlencode
@@ -1502,25 +1504,69 @@ class TestMorselToCookieMaxAge(unittest.TestCase):
 
 
 class TestTimeout:
+    @staticmethod
+    def request_raising(error, proxies=None):
+        class RaisingConnection(object):
+            def urlopen(self, **kwargs):
+                raise error
+
+        class RaisingManager(object):
+            def connection_from_url(self, url):
+                return RaisingConnection()
+
+        manager = RaisingManager()
+        adapter = HTTPAdapter()
+        adapter.poolmanager = manager
+        adapter.proxy_manager_for = lambda proxy: manager
+        session = requests.Session()
+        session.mount('http://', adapter)
+        session.get('http://example.test/', proxies=proxies or {})
+
     def test_exc_002_urllib3_timeout_crossing_requests_api_becomes_requests_timeout_and_does_not_escape(self):
         """GUID: EXC-002 - preserve generic timeout translation and containment."""
-        assert True
+        error = Urllib3TimeoutError('transport timed out')
+
+        with pytest.raises(Timeout) as exc_info:
+            self.request_raising(error)
+
+        assert type(exc_info.value) is Timeout
+        assert exc_info.value.args == (error,)
+        assert not isinstance(exc_info.value, Urllib3TimeoutError)
 
     def test_exc_002_proxy_urllib3_timeout_crossing_requests_api_is_catchable_as_requests_timeout(self):
         """GUID: EXC-002 - preserve proxy-path timeout translation."""
-        assert True
+        proxies = {'http': 'http://proxy.example.test:8080'}
+
+        with pytest.raises(Timeout):
+            self.request_raising(Urllib3TimeoutError('proxy timed out'),
+                                 proxies=proxies)
 
     def test_exc_003_reliably_classified_connect_timeout_becomes_requests_connect_timeout(self):
         """GUID: EXC-003 - preserve the established connect-timeout subtype."""
-        assert True
+        with pytest.raises(ConnectTimeout) as exc_info:
+            self.request_raising(ConnectTimeoutError('connect timed out'))
+
+        assert isinstance(exc_info.value, Timeout)
 
     def test_exc_003_reliably_classified_read_timeout_becomes_requests_read_timeout(self):
         """GUID: EXC-003 - preserve the established read-timeout subtype."""
-        assert True
+        error = ReadTimeoutError(None, '/', 'read timed out')
+
+        with pytest.raises(ReadTimeout) as exc_info:
+            self.request_raising(error)
+
+        assert isinstance(exc_info.value, Timeout)
 
     def test_exc_002_exc_003_unclassified_urllib3_timeout_becomes_requests_timeout_without_specific_subtype(self):
         """GUID: EXC-002, EXC-003 - preserve the unclassified timeout fallback."""
-        assert True
+        error = MaxRetryError(None, '/',
+                              Urllib3TimeoutError('unclassified timeout'))
+
+        with pytest.raises(Timeout) as exc_info:
+            self.request_raising(error)
+
+        assert type(exc_info.value) is Timeout
+        assert exc_info.value.args == (error,)
 
     def test_stream_timeout(self):
         try:

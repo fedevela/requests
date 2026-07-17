@@ -27,9 +27,10 @@ from .packages.urllib3.exceptions import ProtocolError
 from .packages.urllib3.exceptions import ReadTimeoutError
 from .packages.urllib3.exceptions import SSLError as _SSLError
 from .packages.urllib3.exceptions import ResponseError
+from .packages.urllib3.exceptions import TimeoutError as _TimeoutError
 from .cookies import extract_cookies_to_jar
 from .exceptions import (ConnectionError, ConnectTimeout, ReadTimeout, SSLError,
-                         ProxyError, RetryError)
+                         ProxyError, RetryError, Timeout)
 from .auth import _basic_auth_str
 
 DEFAULT_POOLBLOCK = False
@@ -409,26 +410,22 @@ class HTTPAdapter(BaseAdapter):
                     low_conn.close()
                     raise
 
-        # GUID: EXC-002, EXC-003 - urllib3 timeout translation procedure.
-        # INPUT: a transport failure leaving the direct or proxy request path.
-        # SET timeout_failure to the caught failure; when retry exhaustion wraps
-        # a failure, inspect MaxRetryError.reason as timeout_failure instead.
-        # IF timeout_failure is reliably a urllib3 ConnectTimeoutError:
-        #     RAISE the established Requests ConnectTimeout with the request.
-        # ELSE IF timeout_failure is reliably a urllib3 ReadTimeoutError:
-        #     RAISE the established Requests ReadTimeout with the request.
-        # ELSE IF timeout_failure is any other urllib3 TimeoutError:
-        #     RAISE the generic Requests Timeout with the request.
-        # ELSE:
-        #     CONTINUE through the existing non-timeout translation branches.
-        # INVARIANT: proxy selection does not change this classification order,
-        # and no urllib3 TimeoutError subtype crosses the Requests API boundary.
         except (ProtocolError, socket.error) as err:
             raise ConnectionError(err, request=request)
 
         except MaxRetryError as e:
+            # GUID: EXC-003 - retain reliable timeout classification when
+            # urllib3 wraps the transport failure after exhausting retries.
             if isinstance(e.reason, ConnectTimeoutError):
                 raise ConnectTimeout(e, request=request)
+
+            if isinstance(e.reason, ReadTimeoutError):
+                raise ReadTimeout(e, request=request)
+
+            # GUID: EXC-002 - every other urllib3 timeout remains catchable
+            # through the public Requests timeout hierarchy.
+            if isinstance(e.reason, _TimeoutError):
+                raise Timeout(e, request=request)
 
             if isinstance(e.reason, ResponseError):
                 raise RetryError(e, request=request)
@@ -441,8 +438,12 @@ class HTTPAdapter(BaseAdapter):
         except (_SSLError, _HTTPError) as e:
             if isinstance(e, _SSLError):
                 raise SSLError(e, request=request)
+            elif isinstance(e, ConnectTimeoutError):
+                raise ConnectTimeout(e, request=request)
             elif isinstance(e, ReadTimeoutError):
                 raise ReadTimeout(e, request=request)
+            elif isinstance(e, _TimeoutError):
+                raise Timeout(e, request=request)
             else:
                 raise
 
