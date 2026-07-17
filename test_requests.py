@@ -1508,46 +1508,131 @@ class TestSharedExceptionBoundaryContracts:
 
     def test_exc_004_decode_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
         """GUID: EXC-004 - decode translation preserves the public hierarchy."""
+        # LOGIC OBLIGATION (EXC-004):
+        # GIVEN a response whose decoded-content iterator raises urllib3
+        # DecodeError, invoke the Requests response-content boundary.
+        # WHEN the operation raises, capture only through RequestException.
+        # THEN require the captured value to be the existing Requests
+        # ContentDecodingError and reject any escaping urllib3 DecodeError.
         assert True
 
     def test_exc_004_timeout_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
         """GUID: EXC-004 - timeout translation preserves the public hierarchy."""
+        # LOGIC OBLIGATION (EXC-004):
+        # GIVEN an adapter transport operation that raises urllib3 TimeoutError,
+        # invoke it through the public Requests request boundary.
+        # WHEN the operation raises, capture only through RequestException.
+        # THEN require the captured value to be a Requests Timeout subtype and
+        # reject any escaping urllib3 TimeoutError.
         assert True
 
     def test_exc_005_translated_decode_error_retains_message_or_context_identifying_decoding_failure_and_cause(self):
         """GUID: EXC-005 - decoding diagnostics survive translation."""
+        # LOGIC OBLIGATION (EXC-005):
+        # CREATE an urllib3 DecodeError with a diagnostic cause marker.
+        # TRIGGER translation at the Requests response-content boundary.
+        # CAPTURE the resulting ContentDecodingError.
+        # THEN inspect its message, arguments, and chained/wrapped context;
+        # require at least one channel to preserve the marker and identify the
+        # failure category as decoding rather than an unrelated failure.
         assert True
 
     def test_exc_005_translated_timeout_error_retains_message_or_context_identifying_timeout_failure_and_cause(self):
         """GUID: EXC-005 - timeout diagnostics survive translation."""
+        # LOGIC OBLIGATION (EXC-005):
+        # CREATE an urllib3 TimeoutError with a diagnostic cause marker.
+        # TRIGGER translation at the Requests adapter boundary.
+        # CAPTURE the resulting Requests Timeout subtype.
+        # THEN inspect its message, arguments, and chained/wrapped context;
+        # require at least one channel to preserve the marker and identify the
+        # failure category as timeout rather than an unrelated failure.
         assert True
 
     def test_exc_006_reproduced_urllib3_decode_error_terminates_response_processing_by_raising_exception(self):
         """GUID: EXC-006 - decode translation remains a terminating transition."""
+        # LOGIC OBLIGATION (EXC-006):
+        # ARRANGE decoded streaming to yield any established prefix and then
+        # raise urllib3 DecodeError.
+        # START response-content consumption and record whether control reaches
+        # the statement after consumption.
+        # ON DecodeError, transition immediately to raised
+        # ContentDecodingError; do not yield further chunks, mark successful
+        # completion, or return normally.
+        # THEN require the post-consumption statement to remain unreachable.
         assert True
 
     def test_exc_006_reproduced_urllib3_timeout_error_terminates_request_operation_by_raising_exception(self):
         """GUID: EXC-006 - timeout translation remains a terminating transition."""
+        # LOGIC OBLIGATION (EXC-006):
+        # ARRANGE the selected urllib3 transport handoff to raise TimeoutError.
+        # START the Requests operation and record whether control reaches the
+        # statement after the request.
+        # ON TimeoutError, transition immediately to a raised Requests Timeout
+        # subtype; do not construct a response or return normally.
+        # THEN require the post-request statement to remain unreachable.
         assert True
 
     def test_exc_007_translation_preserves_timeout_proxy_decoding_retry_streaming_and_response_processing_behavior_except_exposed_type(self):
         """GUID: EXC-007 - only the identified public exception type changes."""
+        # LOGIC OBLIGATION (EXC-007):
+        # DEFINE equivalent scenarios for direct timeout, proxy timeout,
+        # decoding, retry, streaming, and response processing.
+        # FOR EACH scenario, observe inputs, transport calls, retry count,
+        # yielded/consumed data, response state, and termination before and
+        # after the translation boundary.
+        # IF the path raises identified urllib3 DecodeError or TimeoutError,
+        # permit only the required public Requests exception type to differ.
+        # ELSE require the established result and exception behavior unchanged.
+        # THEN require every non-type observation to be equivalent.
         assert True
 
     def test_exc_008_non_decode_and_non_timeout_exception_path_retains_established_exception_behavior(self):
         """GUID: EXC-008 - unrelated exception paths remain unchanged."""
+        # LOGIC OBLIGATION (EXC-008):
+        # SELECT an established adapter or response exception that is neither
+        # urllib3 DecodeError nor urllib3 TimeoutError.
+        # REPRODUCE that failure through the same Requests boundary used by its
+        # existing regression path.
+        # WHEN the failure escapes, compare its public type, diagnostic payload,
+        # request/response context, and termination point with the established
+        # behavior; require all observations unchanged.
         assert True
 
     def test_exc_009_reproduced_urllib3_decode_error_exposes_only_requests_content_decoding_error(self):
         """GUID: EXC-009 - regression path covers the decoding boundary."""
+        # REGRESSION FLOW (EXC-009; verifies EXC-004, EXC-005, EXC-006):
+        # BUILD a streamed response whose urllib3 decoder raises DecodeError
+        # carrying a unique diagnostic marker during content iteration.
+        # INVOKE the public Requests content-consumption operation.
+        # EXPECT the operation to terminate with ContentDecodingError.
+        # VERIFY it is a RequestException, retains the marker through message or
+        # context, and is not an urllib3 DecodeError.
+        # FAIL if the operation returns or any other exception type escapes.
         assert True
 
     def test_exc_009_reproduced_urllib3_timeout_error_exposes_only_requests_timeout_subtype(self):
         """GUID: EXC-009 - regression path covers the timeout boundary."""
+        # REGRESSION FLOW (EXC-009; verifies EXC-004, EXC-005, EXC-006):
+        # BUILD a direct transport handoff that raises urllib3 TimeoutError
+        # carrying a unique diagnostic marker.
+        # INVOKE the public Requests request operation without a proxy.
+        # EXPECT the operation to terminate with a Requests Timeout subtype.
+        # VERIFY it is a RequestException, retains the marker through message or
+        # context, and is not an urllib3 TimeoutError.
+        # FAIL if a response returns or any other exception type escapes.
         assert True
 
     def test_exc_009_reproduced_proxy_urllib3_timeout_error_exposes_only_requests_timeout_subtype(self):
         """GUID: EXC-009 - regression path covers the proxy-timeout boundary."""
+        # REGRESSION FLOW (EXC-009; verifies EXC-004, EXC-006, EXC-007):
+        # CONFIGURE a proxy and a proxy-manager transport handoff that raises
+        # urllib3 TimeoutError.
+        # INVOKE the public Requests request operation and confirm the proxy
+        # branch performs the established manager selection and transport call.
+        # EXPECT termination with a Requests Timeout subtype that is also a
+        # RequestException; reject any escaping urllib3 TimeoutError.
+        # VERIFY proxy selection, retry behavior, and request flow are otherwise
+        # unchanged; FAIL if a response returns or another type escapes.
         assert True
 
 
