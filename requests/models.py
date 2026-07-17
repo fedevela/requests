@@ -694,27 +694,10 @@ class Response(object):
 
         chunks = reused_chunks if self._content_consumed else stream_chunks
 
-        # JSON-004: without Unicode adaptation, expose the selected byte
-        # iterator directly so its values, contents, and order are unchanged.
-        if not decode_unicode:
-            return chunks
+        if decode_unicode:
+            chunks = stream_decode_response_unicode(chunks, self)
 
-        # JSON-001, JSON-002, JSON-003, JSON-005, JSON-006: Unicode adaptation
-        # remains a lazy, one-way dependency after the source byte iterator is
-        # selected.
-        #
-        # PSEUDOCODE — JSON-005
-        #   INPUT: ordered byte chunks and the response encoding selected from
-        #          its Content-Type charset parameter.
-        #   WHEN decode_unicode is true:
-        #     HAND OFF both inputs to the incremental Unicode decoder.
-        #     YIELD only the decoder's non-empty text values, in source order.
-        #   WHEN decode_unicode is false:
-        #     TAKE the JSON-004 branch above; do not decode or alter bytes.
-        #   VERIFY:
-        #     test_JSON_005_explicit_response_charset_decode_unicode_yields_only_str
-        #     test_JSON_005_joined_decode_unicode_chunks_use_declared_charset
-        return stream_decode_response_unicode(chunks, self)
+        return chunks
 
     def iter_lines(self, chunk_size=ITER_CHUNK_SIZE, decode_unicode=None, delimiter=None):
         """Iterates over the response data, one line at a time.  When
@@ -771,10 +754,6 @@ class Response(object):
         # since we exhausted the data.
         return self._content
 
-    # JSON-007 architecture boundary: Response owns the complete-body
-    # bytes-to-Unicode projection at ``text``.  This seam depends only on the
-    # sibling ``content`` and ``apparent_encoding`` properties; streaming and
-    # JSON parsing remain downstream consumers and must not own this contract.
     @property
     def text(self):
         """Content of the response, in unicode.
@@ -787,22 +766,6 @@ class Response(object):
         non-HTTP knowledge to make a better guess at the encoding, you should
         set ``r.encoding`` appropriately before accessing this property.
         """
-
-        # JSON-007 logic obligation
-        # Verifies:
-        # - test_JSON_007_given_complete_text_accessing_response_text_returns_unicode_str
-        # - test_JSON_007_given_complete_text_accessing_response_text_returns_all_content_once
-        # INPUT: the response's complete byte content and optional encoding.
-        # PROCEDURE:
-        # 1. Obtain the complete response content through the content accessor.
-        # 2. If the content is empty, return an empty Unicode str.
-        # 3. Select the explicit response encoding when present; otherwise select
-        #    the apparent encoding derived from the complete content.
-        # 4. Decode the complete byte content exactly once with replacement for
-        #    malformed byte sequences; do not omit, repeat, or concatenate ranges.
-        # 5. If the selected encoding is absent or invalid, decode the same complete
-        #    byte content once using the default fallback with replacement.
-        # OUTPUT: one Unicode str representing all response text in source order.
 
         # Try charset from content-type
         content = None

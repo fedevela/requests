@@ -336,10 +336,6 @@ def get_encodings_from_content(content):
             xml_re.findall(content))
 
 
-# ARCHITECTURE — JSON-001, JSON-002, JSON-005: this existing header utility
-# owns header-to-encoding selection only.  Its return value is stored as
-# ``Response.encoding``, the shared contract consumed by buffered and streaming
-# response paths; neither path reparses Content-Type or owns charset policy.
 def get_encoding_from_headers(headers):
     """Returns encodings from given HTTP Header Dict.
 
@@ -353,16 +349,6 @@ def get_encoding_from_headers(headers):
 
     content_type, params = cgi.parse_header(content_type)
 
-    # PSEUDOCODE — JSON-005: explicit response charset selection
-    #   INPUT: parsed Content-Type media type and parameter mapping.
-    #   IF a charset parameter is present:
-    #     NORMALIZE only its surrounding quote characters.
-    #     RETURN that declared charset for storage as Response.encoding.
-    #     DO NOT continue to JSON-default or text-default selection.
-    #   ELSE:
-    #     CONTINUE through the existing media-type fallback policy below.
-    #   HANDOFF: iter_content(..., decode_unicode=True) supplies the selected
-    #            Response.encoding to stream_decode_response_unicode.
     if 'charset' in params:
         return params['charset'].strip("'\"")
 
@@ -375,38 +361,11 @@ def get_encoding_from_headers(headers):
         return 'ISO-8859-1'
 
 
-# ARCHITECTURE — JSON-003, JSON-005, JSON-006: this private iterator adapter
-# owns incremental byte-to-text conversion, but not header interpretation.
-# ``Response.iter_content`` supplies the selected byte iterator and the shared
-# ``Response.encoding`` contract, preserving a one-way dependency from response
-# orchestration to this lazy decoding seam.
 def stream_decode_response_unicode(iterator, r):
     """Stream decodes a iterator."""
 
-    # PSEUDOCODE — JSON-005: declared-charset streaming decode
-    #   INPUT: ordered response byte iterator; Response.encoding selected from
-    #          the explicit Content-Type charset.
-    #   IF no encoding was selected:
-    #     YIELD source items unchanged; this is outside JSON-005.
-    #     STOP without constructing a decoder.
-    #   ELSE:
-    #     CONSTRUCT one incremental decoder for the selected charset, using
-    #     the established replacement policy for malformed byte sequences.
-    #     IF the charset name is unsupported, PROPAGATE decoder lookup failure
-    #     before yielding decoded output.
-    #     FOR EACH byte chunk in source order:
-    #       DECODE into text while retaining incomplete character bytes.
-    #       IF decoded text is non-empty, YIELD that Unicode str.
-    #     FLUSH the decoder exactly once at end-of-stream.
-    #     IF the flush produces text, YIELD that final Unicode str.
-    #   OUTPUT: joining yielded values reconstructs decoding the ordered body
-    #           with the declared charset.
-    if r.encoding is None:
-        for item in iterator:
-            yield item
-        return
-
-    decoder = codecs.getincrementaldecoder(r.encoding)(errors='replace')
+    encoding = r.encoding or 'utf-8'
+    decoder = codecs.getincrementaldecoder(encoding)(errors='replace')
     for chunk in iterator:
         rv = decoder.decode(chunk)
         if rv:
