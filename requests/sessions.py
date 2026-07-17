@@ -425,6 +425,23 @@ class Session(SessionRedirectMixin):
             If Tuple, ('cert', 'key') pair.
         """
 
+        # PSEUDOCODE — METHOD-001, METHOD-002, METHOD-003, METHOD-004:
+        # INPUT: a valid binary or ordinary-text HTTP method.
+        # IF running on Python 3 AND method is binary [METHOD-001]:
+        #     decode the encoded method bytes into native text; never stringify
+        #     the binary container or introduce its prefix or quote markers.
+        # ELSE IF method is ordinary text [METHOD-002, METHOD-003]:
+        #     preserve its text and continue through the established
+        #     normalization path.
+        # ELSE IF running on Python 2 AND method is binary [METHOD-004]:
+        #     retain the established native-string conversion behavior.
+        # IF native-text conversion fails:
+        #     propagate the conversion failure without constructing a
+        #     bytes-literal representation or handing off a partial request.
+        # TRANSITION: uppercase the native method using established behavior,
+        # then hand it to Request for preparation and eventual transmission.
+        # OUTPUT: the exact normalized HTTP method text, with all previously
+        # valid method behavior unchanged.
         method = builtin_str(method)
 
         # Create the Request.
