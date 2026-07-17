@@ -1508,7 +1508,14 @@ class TestMethodNormalizationContract:
         # AND confirm request.method contains neither the leading nor trailing
         #     marker produced by a Python bytes-literal representation
         # IF any comparison fails, report the binary normalization case failed
-        assert True
+        if not is_py3:
+            pytest.skip('METHOD-005 binary coverage applies only to Python 3')
+
+        request = self.prepare_method_for_send(b'GET')
+
+        assert request.method == 'GET'
+        assert "b'" not in request.method
+        assert "'" not in request.method
 
     def test_METHOD_005_text_GET_when_prepared_remains_exact_GET(self):
         """GUID: METHOD-005 - Verify the ordinary text-method outcome."""
@@ -1517,7 +1524,9 @@ class TestMethodNormalizationContract:
         # WHEN prepare_method_for_send(method_input) returns a prepared request
         # THEN compare request.method with the exact text value 'GET'
         # IF the comparison fails, report the text preservation case failed
-        assert True
+        request = self.prepare_method_for_send('GET')
+
+        assert request.method == 'GET'
 
     def test_METHOD_005_method_normalization_and_existing_relevant_tests_on_supported_python_versions_remain_passing(self):
         """GUID: METHOD-005 - Verify new and existing relevant coverage passes."""
@@ -1531,7 +1540,15 @@ class TestMethodNormalizationContract:
         #     ELSE
         #         MARK that supported-version run as passing
         # AFTER all supported-version runs complete, require every run to pass
-        assert True
+        cases = (
+            (b'GET', 'GET'),
+            ('GET', 'GET'),
+            ('pAtCh', 'PATCH'),
+        )
+
+        for method, expected in cases:
+            request = self.prepare_method_for_send(method)
+            assert request.method == expected
 
 
 @pytest.fixture
