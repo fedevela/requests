@@ -631,23 +631,6 @@ class Response(object):
         If decode_unicode is True, content will be decoded using the best
         available encoding based on the response.
         """
-        # SOCK-007, SOCK-008 architecture boundary: iter_content owns the raw
-        # response-body adapter. It is the only consumption layer that depends
-        # on raw-stream failure types; downstream consumers receive established
-        # Requests exceptions or established chunks through this iterator seam.
-        # SOCK-007, SOCK-008 logic obligations -- response iteration:
-        # INPUT: the existing raw response stream, requested chunk size, and
-        # unicode-decoding choice.
-        # IF raw streaming raises IncompleteRead, translate that failure to
-        # ChunkedEncodingError and terminate iteration with that exception.
-        # ELSE IF raw streaming raises DecodeError, translate that failure to
-        # ContentDecodingError and terminate iteration with that exception.
-        # ELSE yield each established chunk in order; after the source is
-        # exhausted, mark content consumed and complete iteration normally.
-        # IF content was already consumed, iterate the buffered content using
-        # the established slicing semantics instead of reading raw again.
-        # IF unicode decoding is requested, pass the selected chunk iterator
-        # through the established response-unicode decoder before returning it.
         def generate():
             try:
                 # Special case for urllib3.
@@ -659,10 +642,6 @@ class Response(object):
                 except DecodeError as e:
                     raise ContentDecodingError(e)
                 except socket.error as e:
-                    # SOCK-001, SOCK-002, SOCK-003, SOCK-004, SOCK-005, SOCK-006
-                    # Exception-boundary contract: iter_content owns transport
-                    # error normalization; buffering consumers depend only on
-                    # Requests exceptions yielded by this seam.
                     raise ConnectionError(e)
             except AttributeError:
                 # Standard file-like object.
@@ -670,9 +649,6 @@ class Response(object):
                     try:
                         chunk = self.raw.read(chunk_size)
                     except socket.error as e:
-                        # SOCK-001, SOCK-002, SOCK-003, SOCK-004, SOCK-005, SOCK-006
-                        # Keep the file-like adapter behind the same normalized
-                        # iterator contract as the urllib3 adapter above.
                         raise ConnectionError(e)
                     if not chunk:
                         break
@@ -721,29 +697,6 @@ class Response(object):
     def content(self):
         """Content of the response, in bytes."""
 
-        # SOCK-008 architecture boundary: content owns complete-body buffering
-        # and depends inward on iter_content's chunk/exception contract. It
-        # neither reads the raw stream directly nor owns text decoding.
-        # SOCK-008 logic obligation -- successful complete-body buffering:
-        # INPUT: the response's current content and consumption state.
-        # IF content is not cached and has not already been consumed, consume
-        # iter_content to normal completion, join every yielded chunk in order,
-        # normalize an empty body to empty bytes, and cache the complete result.
-        # ELSE preserve the established zero-status, already-consumed, and
-        # already-cached branches and their existing results or failures.
-        # TRANSITION: mark content consumed only on the established successful
-        # path, then OUTPUT the complete cached byte content.
-        # SOCK-002, SOCK-003 architecture boundary: content owns the atomic buffer/commit
-        # boundary and consumes iter_content's normalized-exception contract;
-        # raw transport errors must not cross into this property.
-        # SOCK-002 logic obligation:
-        # WHEN uncached response content is requested, consume every body chunk
-        # into a staged buffer before assigning or returning buffered content.
-        # IF body consumption encounters a connection-reset socket.error, rely
-        # on the iterator boundary to translate it to ConnectionError, abandon
-        # all staged chunks, and propagate that translated failure without
-        # committing or returning partial content or exposing socket.error.
-        # OTHERWISE commit the complete staged body and return it normally.
         if self._content is False:
             # Read the contents.
             try:
@@ -754,9 +707,7 @@ class Response(object):
                 if self.status_code == 0:
                     self._content = None
                 else:
-                    content = bytes().join(
-                        self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
-                    self._content = content
+                    self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
 
             except AttributeError:
                 self._content = None
@@ -779,35 +730,11 @@ class Response(object):
         set ``r.encoding`` appropriately before accessing this property.
         """
 
-        # SOCK-008 architecture boundary: text owns character decoding and
-        # depends inward on content's complete-byte contract. Transport access,
-        # chunk iteration, and buffering remain outside this property.
-        # SOCK-008 logic obligation -- successful text consumption:
-        # INPUT: complete bytes obtained through content and the response's
-        # existing encoding metadata.
-        # IF content is empty, return the established empty text result.
-        # ELSE IF no encoding is declared, select the established apparent
-        # encoding; decode the complete content with replacement semantics.
-        # IF the selected encoding is invalid or unusable, follow the existing
-        # fallback decoding branch; OUTPUT the resulting text without changing
-        # content buffering, encoding selection, or replacement semantics.
-        # SOCK-003 architecture boundary: text owns text decoding only and
-        # consumes content's complete-body/normalized-exception contract; it
-        # must not read from the transport stream or translate socket errors.
-        # SOCK-003 logic obligation:
-        # WHEN text is requested, obtain the complete body through the content
-        # property before attempting encoding detection or text decoding.
-        # IF body consumption encounters connection-reset socket.error, depend
-        # on the content/iterator boundary to discard staged bytes and raise
-        # ConnectionError; propagate it immediately, without decoding or
-        # returning partial text and without exposing the raw socket exception.
-        # OTHERWISE decode only the complete body and return the resulting text.
-
         # Try charset from content-type
+        content = None
         encoding = self.encoding
-        content = self.content
 
-        if not content:
+        if not self.content:
             return str('')
 
         # Fallback to auto-detected encoding.
@@ -816,7 +743,7 @@ class Response(object):
 
         # Decode unicode from given encoding.
         try:
-            content = str(content, encoding, errors='replace')
+            content = str(self.content, encoding, errors='replace')
         except (LookupError, TypeError):
             # A LookupError is raised if the encoding was not found which could
             # indicate a misspelling or similar mistake.
@@ -824,7 +751,7 @@ class Response(object):
             # A TypeError can be raised if encoding is None
             #
             # So we try blindly encoding.
-            content = str(content, errors='replace')
+            content = str(self.content, errors='replace')
 
         return content
 
