@@ -43,6 +43,10 @@ class SSLError(ConnectionError):
     """An SSL error occurred."""
 
 
+# GUID: EXC-002, EXC-003 - Requests owns this public timeout contract.
+# HTTPAdapter.send is the single translation seam for direct and proxy urllib3
+# failures: classified failures target the existing subclasses below, while
+# unclassified urllib3 timeouts target Timeout itself.
 class Timeout(RequestException):
     """The request timed out.
 
