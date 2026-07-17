@@ -149,9 +149,7 @@ class Request(object):
         hooks = hooks or {}
 
         for (k, v) in list(hooks.items()):
-            hooks_for_event = v if isinstance(v, list) else [v]
-            for hook in hooks_for_event:
-                self.register_hook(event=k, hook=hook)
+            self.register_hook(event=k, hook=v)
 
         #: Session.
         self.session = session
@@ -465,7 +463,10 @@ class Request(object):
     def register_hook(self, event, hook):
         """Properly register a hook."""
 
-        self.hooks[event].append(hook)
+        if isinstance(hook, list):
+            self.hooks[event].extend(hook)
+        else:
+            self.hooks[event].append(hook)
 
     def deregister_hook(self, event, hook):
         """Deregister a previously registered hook.
