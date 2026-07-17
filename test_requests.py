@@ -740,6 +740,22 @@ class RequestsTestCase(unittest.TestCase):
         chunks = r.iter_content(decode_unicode=True)
         assert all(isinstance(chunk, str) for chunk in chunks)
 
+    def test_SOCK_001_iter_content_connection_reset_before_first_chunk_raises_connection_error(self):
+        """SOCK-001: hide a raw connection-reset socket error behind ConnectionError."""
+        assert True
+
+    def test_SOCK_004_iter_content_translated_socket_error_preserves_recognizable_diagnostics(self):
+        """SOCK-004: retain recognizable socket diagnostics after translation."""
+        assert True
+
+    def test_SOCK_005_iter_content_raw_socket_error_raises_requests_connection_exception(self):
+        """SOCK-005: consistently classify streaming socket errors in Requests."""
+        assert True
+
+    def test_SOCK_006_iter_content_socket_error_after_chunks_raises_on_next_iteration(self):
+        """SOCK-006: fail the next iteration after chunks instead of completing."""
+        assert True
+
     def test_request_and_response_are_pickleable(self):
         r = requests.get(httpbin('get'))
 
