@@ -87,6 +87,9 @@ class ChunkedEncodingError(RequestException):
     """The server declared chunked encoding but sent an invalid chunk."""
 
 
+# GUID: EXC-001 - Requests owns this public response-decoding contract.
+# Response.iter_content is the adapter seam from urllib3 DecodeError to this
+# exception; the vendored urllib3 layer remains independent of Requests.
 class ContentDecodingError(RequestException, BaseHTTPError):
     """Failed to decode response content"""
 
