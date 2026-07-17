@@ -699,6 +699,14 @@ class Response(object):
     def content(self):
         """Content of the response, in bytes."""
 
+        # SOCK-002 logic obligation:
+        # WHEN uncached response content is requested, consume every body chunk
+        # into a staged buffer before assigning or returning buffered content.
+        # IF body consumption encounters a connection-reset socket.error, rely
+        # on the iterator boundary to translate it to ConnectionError, abandon
+        # all staged chunks, and propagate that translated failure without
+        # committing or returning partial content or exposing socket.error.
+        # OTHERWISE commit the complete staged body and return it normally.
         if self._content is False:
             # Read the contents.
             try:
