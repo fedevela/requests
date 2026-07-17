@@ -352,6 +352,11 @@ def get_encoding_from_headers(headers):
     if 'charset' in params:
         return params['charset'].strip("'\"")
 
+    # JSON-001, JSON-002: RFC 4627 defines UTF-8 as the default JSON encoding.
+    # Store it on the response so streaming and buffered text use one policy.
+    if content_type == 'application/json':
+        return 'utf-8'
+
     if 'text' in content_type:
         return 'ISO-8859-1'
 
@@ -359,12 +364,8 @@ def get_encoding_from_headers(headers):
 def stream_decode_response_unicode(iterator, r):
     """Stream decodes a iterator."""
 
-    if r.encoding is None:
-        for item in iterator:
-            yield item
-        return
-
-    decoder = codecs.getincrementaldecoder(r.encoding)(errors='replace')
+    encoding = r.encoding or 'utf-8'
+    decoder = codecs.getincrementaldecoder(encoding)(errors='replace')
     for chunk in iterator:
         rv = decoder.decode(chunk)
         if rv:
