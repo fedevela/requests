@@ -631,6 +631,19 @@ class Response(object):
         If decode_unicode is True, content will be decoded using the best
         available encoding based on the response.
         """
+        # SOCK-007, SOCK-008 logic obligations -- response iteration:
+        # INPUT: the existing raw response stream, requested chunk size, and
+        # unicode-decoding choice.
+        # IF raw streaming raises IncompleteRead, translate that failure to
+        # ChunkedEncodingError and terminate iteration with that exception.
+        # ELSE IF raw streaming raises DecodeError, translate that failure to
+        # ContentDecodingError and terminate iteration with that exception.
+        # ELSE yield each established chunk in order; after the source is
+        # exhausted, mark content consumed and complete iteration normally.
+        # IF content was already consumed, iterate the buffered content using
+        # the established slicing semantics instead of reading raw again.
+        # IF unicode decoding is requested, pass the selected chunk iterator
+        # through the established response-unicode decoder before returning it.
         def generate():
             try:
                 # Special case for urllib3.
@@ -704,6 +717,15 @@ class Response(object):
     def content(self):
         """Content of the response, in bytes."""
 
+        # SOCK-008 logic obligation -- successful complete-body buffering:
+        # INPUT: the response's current content and consumption state.
+        # IF content is not cached and has not already been consumed, consume
+        # iter_content to normal completion, join every yielded chunk in order,
+        # normalize an empty body to empty bytes, and cache the complete result.
+        # ELSE preserve the established zero-status, already-consumed, and
+        # already-cached branches and their existing results or failures.
+        # TRANSITION: mark content consumed only on the established successful
+        # path, then OUTPUT the complete cached byte content.
         # SOCK-002, SOCK-003 architecture boundary: content owns the atomic buffer/commit
         # boundary and consumes iter_content's normalized-exception contract;
         # raw transport errors must not cross into this property.
@@ -750,6 +772,15 @@ class Response(object):
         set ``r.encoding`` appropriately before accessing this property.
         """
 
+        # SOCK-008 logic obligation -- successful text consumption:
+        # INPUT: complete bytes obtained through content and the response's
+        # existing encoding metadata.
+        # IF content is empty, return the established empty text result.
+        # ELSE IF no encoding is declared, select the established apparent
+        # encoding; decode the complete content with replacement semantics.
+        # IF the selected encoding is invalid or unusable, follow the existing
+        # fallback decoding branch; OUTPUT the resulting text without changing
+        # content buffering, encoding selection, or replacement semantics.
         # SOCK-003 architecture boundary: text owns text decoding only and
         # consumes content's complete-body/normalized-exception contract; it
         # must not read from the transport stream or translate socket errors.
