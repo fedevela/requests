@@ -699,8 +699,21 @@ class Response(object):
         if not decode_unicode:
             return chunks
 
-        # JSON-001, JSON-002, JSON-003, JSON-006: Unicode adaptation remains a
-        # lazy, one-way dependency after the source byte iterator is selected.
+        # JSON-001, JSON-002, JSON-003, JSON-005, JSON-006: Unicode adaptation
+        # remains a lazy, one-way dependency after the source byte iterator is
+        # selected.
+        #
+        # PSEUDOCODE — JSON-005
+        #   INPUT: ordered byte chunks and the response encoding selected from
+        #          its Content-Type charset parameter.
+        #   WHEN decode_unicode is true:
+        #     HAND OFF both inputs to the incremental Unicode decoder.
+        #     YIELD only the decoder's non-empty text values, in source order.
+        #   WHEN decode_unicode is false:
+        #     TAKE the JSON-004 branch above; do not decode or alter bytes.
+        #   VERIFY:
+        #     test_JSON_005_explicit_response_charset_decode_unicode_yields_only_str
+        #     test_JSON_005_joined_decode_unicode_chunks_use_declared_charset
         return stream_decode_response_unicode(chunks, self)
 
     def iter_lines(self, chunk_size=ITER_CHUNK_SIZE, decode_unicode=None, delimiter=None):

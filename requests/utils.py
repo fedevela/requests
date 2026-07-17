@@ -353,6 +353,16 @@ def get_encoding_from_headers(headers):
 
     content_type, params = cgi.parse_header(content_type)
 
+    # PSEUDOCODE — JSON-005: explicit response charset selection
+    #   INPUT: parsed Content-Type media type and parameter mapping.
+    #   IF a charset parameter is present:
+    #     NORMALIZE only its surrounding quote characters.
+    #     RETURN that declared charset for storage as Response.encoding.
+    #     DO NOT continue to JSON-default or text-default selection.
+    #   ELSE:
+    #     CONTINUE through the existing media-type fallback policy below.
+    #   HANDOFF: iter_content(..., decode_unicode=True) supplies the selected
+    #            Response.encoding to stream_decode_response_unicode.
     if 'charset' in params:
         return params['charset'].strip("'\"")
 
@@ -365,12 +375,31 @@ def get_encoding_from_headers(headers):
         return 'ISO-8859-1'
 
 
-# ARCHITECTURE — JSON-003, JSON-006: this private iterator adapter owns the
-# incremental byte-to-text boundary.  ``Response.iter_content`` supplies the
-# transport iterator and response encoding, and consumes this seam lazily.
+# ARCHITECTURE — JSON-003, JSON-005, JSON-006: this private iterator adapter
+# owns the incremental byte-to-text boundary.  ``Response.iter_content``
+# supplies the transport iterator and response encoding, and consumes this
+# seam lazily.
 def stream_decode_response_unicode(iterator, r):
     """Stream decodes a iterator."""
 
+    # PSEUDOCODE — JSON-005: declared-charset streaming decode
+    #   INPUT: ordered response byte iterator; Response.encoding selected from
+    #          the explicit Content-Type charset.
+    #   IF no encoding was selected:
+    #     YIELD source items unchanged; this is outside JSON-005.
+    #     STOP without constructing a decoder.
+    #   ELSE:
+    #     CONSTRUCT one incremental decoder for the selected charset, using
+    #     the established replacement policy for malformed byte sequences.
+    #     IF the charset name is unsupported, PROPAGATE decoder lookup failure
+    #     before yielding decoded output.
+    #     FOR EACH byte chunk in source order:
+    #       DECODE into text while retaining incomplete character bytes.
+    #       IF decoded text is non-empty, YIELD that Unicode str.
+    #     FLUSH the decoder exactly once at end-of-stream.
+    #     IF the flush produces text, YIELD that final Unicode str.
+    #   OUTPUT: joining yielded values reconstructs decoding the ordered body
+    #           with the declared charset.
     if r.encoding is None:
         for item in iterator:
             yield item
