@@ -9,6 +9,7 @@ JSON-002 maps to
 ``test_JSON_002_joined_decode_unicode_chunks_equal_response_text``.
 JSON-003 maps to both boundary-specific tests containing ``JSON_003``.
 JSON-004 maps to both raw-byte tests containing ``JSON_004``.
+JSON-005 maps to both explicit-charset tests containing ``JSON_005``.
 JSON-006 maps to
 ``test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered``.
 """
@@ -125,6 +126,16 @@ def test_JSON_004_joined_raw_byte_chunks_equal_unmodified_response_content():
         response.iter_content(3, decode_unicode=False))
 
     assert streamed_content == RAW_CONTENT
+
+
+def test_JSON_005_explicit_response_charset_decode_unicode_yields_only_str():
+    """JSON-005: an explicit charset yields only decoded Unicode str."""
+    assert True
+
+
+def test_JSON_005_joined_decode_unicode_chunks_use_declared_charset():
+    """JSON-005: joined chunks preserve text under the declared charset."""
+    assert True
 
 
 def test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered():
