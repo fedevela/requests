@@ -106,6 +106,31 @@ class SessionRedirectMixin(object):
         # OUTPUT: yield each response produced from its immediately preceding
         # request while preserving the accumulated effective method.
 
+        # PSEUDOCODE -- GUID: REDIRECT-002, REDIRECT-004
+        # INPUT: current_response and current_request, initially the response
+        # to the caller's POST and that exact POST PreparedRequest.
+        # WHILE current_response is a redirect:
+        #   fail with TooManyRedirects before sending if the limit is reached.
+        #   next_request := copy(current_request).
+        #   effective_method := current_request.method.
+        #   IF current_response.status is 303 and effective_method is not HEAD:
+        #       effective_method := GET.                         [REDIRECT-002]
+        #   ELSE IF the status is method-preserving (including 307):
+        #       leave effective_method unchanged; therefore a GET produced by
+        #       the preceding 303 remains GET, never the original POST.
+        #   ELSE apply only the existing status-specific method transition.
+        #   next_request.method := effective_method.
+        #   next_response := send(next_request).
+        #   associate next_response with next_request so its request method is
+        #   the effective_method actually issued for this step. [REDIRECT-004]
+        #   advance (current_request, current_response) to
+        #   (next_request, next_response), then yield next_response in order.
+        # FAILURE: if request preparation or sending fails, propagate that
+        # failure and create no synthetic response/history association.
+        # OUTPUT: each yielded response retains its own effective request,
+        # including POST, GET, GET across the reported initial response and
+        # its two redirect steps.
+
         # ARCHITECTURE CONTRACT -- GUID: REDIRECT-001, REDIRECT-003
         # SessionRedirectMixin.resolve_redirects owns the chain-local
         # PreparedRequest cursor.  The loop boundary is the private integration
@@ -556,6 +581,18 @@ class Session(SessionRedirectMixin):
 
         # Resolve redirects if allowed.
         history = [resp for resp in gen] if allow_redirects else []
+
+        # PSEUDOCODE -- GUID: REDIRECT-004
+        # INPUT: original_response plus redirect responses yielded in order;
+        # each response already carries the PreparedRequest used for its step.
+        # IF one or more redirected responses exist:
+        #   ordered_responses := original_response followed by yielded responses.
+        #   final_response := last ordered response.
+        #   final_response.history := every earlier response, in order.
+        #   preserve every response.request association unchanged; never rebuild
+        #   a history entry's request from the initial request or another step.
+        # OUTPUT: inspecting each history response exposes the effective method
+        # actually issued for that response's step.
 
         # Shuffle things around if there's history.
         if history:
