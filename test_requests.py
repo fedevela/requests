@@ -1492,14 +1492,36 @@ class TestMethodNormalizationContract:
 
     def test_METHOD_005_python3_binary_GET_when_prepared_is_exact_GET_without_bytes_literal_markers(self):
         """GUID: METHOD-005 - Verify the Python 3 binary-method outcome."""
+        # METHOD-005 pseudocode:
+        # GIVEN the active interpreter is Python 3 and method_input is b'GET'
+        # WHEN prepare_method_for_send(method_input) returns a prepared request
+        # THEN compare request.method with the exact text value 'GET'
+        # AND confirm request.method contains neither the leading nor trailing
+        #     marker produced by a Python bytes-literal representation
+        # IF any comparison fails, report the binary normalization case failed
         assert True
 
     def test_METHOD_005_text_GET_when_prepared_remains_exact_GET(self):
         """GUID: METHOD-005 - Verify the ordinary text-method outcome."""
+        # METHOD-005 pseudocode:
+        # GIVEN method_input is the ordinary text value 'GET'
+        # WHEN prepare_method_for_send(method_input) returns a prepared request
+        # THEN compare request.method with the exact text value 'GET'
+        # IF the comparison fails, report the text preservation case failed
         assert True
 
     def test_METHOD_005_method_normalization_and_existing_relevant_tests_on_supported_python_versions_remain_passing(self):
         """GUID: METHOD-005 - Verify new and existing relevant coverage passes."""
+        # METHOD-005 pseudocode:
+        # FOR EACH supported Python version supplied by the test environment
+        #     RUN the binary and text METHOD-005 cases together with the
+        #         existing relevant method-normalization contract cases
+        #     COLLECT every case outcome
+        #     IF any new or existing relevant case fails
+        #         MARK that supported-version run as failed and expose its outcome
+        #     ELSE
+        #         MARK that supported-version run as passing
+        # AFTER all supported-version runs complete, require every run to pass
         assert True
 
 
