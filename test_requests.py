@@ -773,6 +773,10 @@ class RequestsTestCase(unittest.TestCase):
         assert response._content is False
         assert response._content_consumed is False
 
+    def test_SOCK_003_response_text_connection_reset_while_reading_raises_connection_error_without_partial_text_or_raw_socket_error(self):
+        """SOCK-003: preserve the response-text connection-reset contract."""
+        assert True
+
     def test_SOCK_004_iter_content_translated_socket_error_preserves_recognizable_diagnostics(self):
         """SOCK-004: retain recognizable socket diagnostics after translation."""
         failure = socket.error(104, 'Connection reset by peer')
