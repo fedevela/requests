@@ -20,12 +20,14 @@ from requests.compat import (
     Morsel, cookielib, getproxies, str, urljoin, urlparse, is_py3, builtin_str)
 from requests.cookies import cookiejar_from_dict, morsel_to_cookie
 from requests.exceptions import (ConnectionError, ConnectTimeout,
-                                 ContentDecodingError,
+                                 ContentDecodingError, ChunkedEncodingError,
                                  InvalidSchema, InvalidURL, MissingSchema,
-                                 ReadTimeout, Timeout, RetryError)
+                                 ReadTimeout, RequestException, Timeout,
+                                 RetryError)
 from requests.models import PreparedRequest
 from requests.packages.urllib3.exceptions import (
-    ConnectTimeoutError, DecodeError, MaxRetryError, ReadTimeoutError,
+    ConnectTimeoutError, DecodeError, MaxRetryError, ProtocolError,
+    ReadTimeoutError,
     TimeoutError as Urllib3TimeoutError)
 from requests.structures import CaseInsensitiveDict
 from requests.sessions import SessionRedirectMixin
@@ -1504,7 +1506,7 @@ class TestMorselToCookieMaxAge(unittest.TestCase):
 
 
 class TestSharedExceptionBoundaryContracts:
-    """Placeholder verification obligations for Issue #18.
+    """Regression verification obligations for Issue #18.
 
     Architecture locus (EXC-004 through EXC-009): this class owns shared
     public-boundary regression coverage. Decode fixtures enter through
@@ -1515,6 +1517,55 @@ class TestSharedExceptionBoundaryContracts:
     vendored exception types.
     """
 
+    @staticmethod
+    def _response_raising(error, prefix=()):
+        observations = {'stream_calls': []}
+        response = requests.Response()
+
+        class RawResponse(object):
+            def stream(self, chunk_size, decode_content):
+                observations['stream_calls'].append((chunk_size,
+                                                     decode_content))
+                for chunk in prefix:
+                    yield chunk
+                raise error
+
+        response.raw = RawResponse()
+        return response, observations
+
+    @staticmethod
+    def _request_raising(error, observations, proxies=None):
+        observations.update(connection_urls=[], proxy_urls=[],
+                            urlopen_calls=[])
+
+        class RaisingConnection(object):
+            def urlopen(self, **kwargs):
+                observations['urlopen_calls'].append(kwargs)
+                raise error
+
+        class RaisingManager(object):
+            def connection_from_url(self, url):
+                observations['connection_urls'].append(url)
+                return RaisingConnection()
+
+        manager = RaisingManager()
+        adapter = HTTPAdapter()
+        adapter.poolmanager = manager
+
+        def proxy_manager_for(proxy):
+            observations['proxy_urls'].append(proxy)
+            return manager
+
+        adapter.proxy_manager_for = proxy_manager_for
+        session = requests.Session()
+        session.trust_env = False
+        session.mount('http://', adapter)
+
+        try:
+            session.get('http://example.test/', proxies=proxies or {})
+        finally:
+            observations['max_retries'] = adapter.max_retries
+
     def test_exc_004_decode_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
         """GUID: EXC-004 - decode translation preserves the public hierarchy."""
         # LOGIC OBLIGATION (EXC-004):
@@ -1523,7 +1574,14 @@ class TestSharedExceptionBoundaryContracts:
         # WHEN the operation raises, capture only through RequestException.
         # THEN require the captured value to be the existing Requests
         # ContentDecodingError and reject any escaping urllib3 DecodeError.
-        assert True
+        response, _ = self._response_raising(
+            DecodeError('decode hierarchy marker'))
+
+        with pytest.raises(RequestException) as exc_info:
+            next(response.iter_content())
+
+        assert isinstance(exc_info.value, ContentDecodingError)
+        assert not isinstance(exc_info.value, DecodeError)
 
     def test_exc_004_timeout_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
         """GUID: EXC-004 - timeout translation preserves the public hierarchy."""
@@ -1533,7 +1591,14 @@ class TestSharedExceptionBoundaryContracts:
         # WHEN the operation raises, capture only through RequestException.
         # THEN require the captured value to be a Requests Timeout subtype and
         # reject any escaping urllib3 TimeoutError.
-        assert True
+        error = Urllib3TimeoutError('timeout hierarchy marker')
+        observations = {}
+
+        with pytest.raises(RequestException) as exc_info:
+            self._request_raising(error, observations)
+
+        assert isinstance(exc_info.value, Timeout)
+        assert not isinstance(exc_info.value, Urllib3TimeoutError)
 
     def test_exc_005_translated_decode_error_retains_message_or_context_identifying_decoding_failure_and_cause(self):
         """GUID: EXC-005 - decoding diagnostics survive translation."""
@@ -1544,7 +1609,15 @@ class TestSharedExceptionBoundaryContracts:
         # THEN inspect its message, arguments, and chained/wrapped context;
         # require at least one channel to preserve the marker and identify the
         # failure category as decoding rather than an unrelated failure.
-        assert True
+        marker = 'decode diagnostic marker'
+        error = DecodeError(marker)
+        response, _ = self._response_raising(error)
+
+        with pytest.raises(ContentDecodingError) as exc_info:
+            next(response.iter_content())
+
+        assert marker in str(exc_info.value)
+        assert exc_info.value.args == (error,)
 
     def test_exc_005_translated_timeout_error_retains_message_or_context_identifying_timeout_failure_and_cause(self):
         """GUID: EXC-005 - timeout diagnostics survive translation."""
@@ -1555,7 +1628,15 @@ class TestSharedExceptionBoundaryContracts:
         # THEN inspect its message, arguments, and chained/wrapped context;
         # require at least one channel to preserve the marker and identify the
         # failure category as timeout rather than an unrelated failure.
-        assert True
+        marker = 'timeout diagnostic marker'
+        error = Urllib3TimeoutError(marker)
+        observations = {}
+
+        with pytest.raises(Timeout) as exc_info:
+            self._request_raising(error, observations)
+
+        assert marker in str(exc_info.value)
+        assert exc_info.value.args == (error,)
 
     def test_exc_006_reproduced_urllib3_decode_error_terminates_response_processing_by_raising_exception(self):
         """GUID: EXC-006 - decode translation remains a terminating transition."""
@@ -1568,7 +1649,19 @@ class TestSharedExceptionBoundaryContracts:
         # ContentDecodingError; do not yield further chunks, mark successful
         # completion, or return normally.
         # THEN require the post-consumption statement to remain unreachable.
-        assert True
+        error = DecodeError('terminating decode marker')
+        response, observations = self._response_raising(error, (b'prefix',))
+        chunks = response.iter_content(chunk_size=7)
+        completed = False
+
+        assert next(chunks) == b'prefix'
+        with pytest.raises(ContentDecodingError):
+            list(chunks)
+            completed = True
+
+        assert completed is False
+        assert observations['stream_calls'] == [(7, True)]
+        assert response._content_consumed is False
 
     def test_exc_006_reproduced_urllib3_timeout_error_terminates_request_operation_by_raising_exception(self):
         """GUID: EXC-006 - timeout translation remains a terminating transition."""
@@ -1579,7 +1672,16 @@ class TestSharedExceptionBoundaryContracts:
         # ON TimeoutError, transition immediately to a raised Requests Timeout
         # subtype; do not construct a response or return normally.
         # THEN require the post-request statement to remain unreachable.
-        assert True
+        error = Urllib3TimeoutError('terminating timeout marker')
+        observations = {}
+        completed = False
+
+        with pytest.raises(Timeout):
+            self._request_raising(error, observations)
+            completed = True
+
+        assert completed is False
+        assert len(observations['urlopen_calls']) == 1
 
     def test_exc_007_translation_preserves_timeout_proxy_decoding_retry_streaming_and_response_processing_behavior_except_exposed_type(self):
         """GUID: EXC-007 - only the identified public exception type changes."""
@@ -1593,7 +1695,44 @@ class TestSharedExceptionBoundaryContracts:
         # permit only the required public Requests exception type to differ.
         # ELSE require the established result and exception behavior unchanged.
         # THEN require every non-type observation to be equivalent.
-        assert True
+        decode_error = DecodeError('invariant decode marker')
+        response, decode_observations = self._response_raising(
+            decode_error, (b'first', b'second'))
+        chunks = response.iter_content(chunk_size=8)
+
+        assert next(chunks) == b'first'
+        assert next(chunks) == b'second'
+        with pytest.raises(ContentDecodingError) as decode_info:
+            next(chunks)
+
+        assert decode_info.value.args == (decode_error,)
+        assert decode_observations['stream_calls'] == [(8, True)]
+        assert response._content_consumed is False
+
+        direct_error = Urllib3TimeoutError('invariant direct timeout marker')
+        direct_observations = {}
+        with pytest.raises(Timeout) as direct_info:
+            self._request_raising(direct_error, direct_observations)
+
+        assert direct_info.value.args == (direct_error,)
+        assert direct_observations['proxy_urls'] == []
+        assert len(direct_observations['urlopen_calls']) == 1
+
+        timeout_error = Urllib3TimeoutError('invariant timeout marker')
+        proxies = {'http': 'http://proxy.example.test:8080'}
+        wrapped_error = MaxRetryError(None, '/', timeout_error)
+        observations = {}
+        with pytest.raises(Timeout) as timeout_info:
+            self._request_raising(wrapped_error, observations,
+                                  proxies=proxies)
+
+        assert timeout_info.value.args == (wrapped_error,)
+        assert wrapped_error.reason is timeout_error
+        assert observations['proxy_urls'] == [proxies['http']]
+        assert observations['connection_urls'] == ['http://example.test/']
+        assert len(observations['urlopen_calls']) == 1
+        assert (observations['urlopen_calls'][0]['retries'] is
+                observations['max_retries'])
 
     def test_exc_008_non_decode_and_non_timeout_exception_path_retains_established_exception_behavior(self):
         """GUID: EXC-008 - unrelated exception paths remain unchanged."""
@@ -1605,7 +1744,17 @@ class TestSharedExceptionBoundaryContracts:
         # WHEN the failure escapes, compare its public type, diagnostic payload,
         # request/response context, and termination point with the established
         # behavior; require all observations unchanged.
-        assert True
+        error = ProtocolError('established protocol marker')
+        response, observations = self._response_raising(error, (b'prefix',))
+        chunks = response.iter_content(chunk_size=3)
+
+        assert next(chunks) == b'prefix'
+        with pytest.raises(ChunkedEncodingError) as exc_info:
+            next(chunks)
+
+        assert exc_info.value.args == (error,)
+        assert observations['stream_calls'] == [(3, True)]
+        assert response._content_consumed is False
 
     def test_exc_009_reproduced_urllib3_decode_error_exposes_only_requests_content_decoding_error(self):
         """GUID: EXC-009 - regression path covers the decoding boundary."""
@@ -1617,7 +1766,17 @@ class TestSharedExceptionBoundaryContracts:
         # VERIFY it is a RequestException, retains the marker through message or
         # context, and is not an urllib3 DecodeError.
         # FAIL if the operation returns or any other exception type escapes.
-        assert True
+        marker = 'exc-009 decode marker'
+        error = DecodeError(marker)
+        response, _ = self._response_raising(error)
+
+        with pytest.raises(ContentDecodingError) as exc_info:
+            next(response.iter_content())
+
+        assert isinstance(exc_info.value, RequestException)
+        assert not isinstance(exc_info.value, DecodeError)
+        assert marker in str(exc_info.value)
+        assert exc_info.value.args == (error,)
 
     def test_exc_009_reproduced_urllib3_timeout_error_exposes_only_requests_timeout_subtype(self):
         """GUID: EXC-009 - regression path covers the timeout boundary."""
@@ -1629,7 +1788,17 @@ class TestSharedExceptionBoundaryContracts:
         # VERIFY it is a RequestException, retains the marker through message or
         # context, and is not an urllib3 TimeoutError.
         # FAIL if a response returns or any other exception type escapes.
-        assert True
+        marker = 'exc-009 direct timeout marker'
+        error = Urllib3TimeoutError(marker)
+        observations = {}
+
+        with pytest.raises(Timeout) as exc_info:
+            self._request_raising(error, observations)
+
+        assert isinstance(exc_info.value, RequestException)
+        assert not isinstance(exc_info.value, Urllib3TimeoutError)
+        assert marker in str(exc_info.value)
+        assert exc_info.value.args == (error,)
 
     def test_exc_009_reproduced_proxy_urllib3_timeout_error_exposes_only_requests_timeout_subtype(self):
         """GUID: EXC-009 - regression path covers the proxy-timeout boundary."""
@@ -1642,7 +1811,19 @@ class TestSharedExceptionBoundaryContracts:
         # RequestException; reject any escaping urllib3 TimeoutError.
         # VERIFY proxy selection, retry behavior, and request flow are otherwise
         # unchanged; FAIL if a response returns or another type escapes.
-        assert True
+        marker = 'exc-009 proxy timeout marker'
+        error = Urllib3TimeoutError(marker)
+        proxies = {'http': 'http://proxy.example.test:8080'}
+        observations = {}
+
+        with pytest.raises(Timeout) as exc_info:
+            self._request_raising(error, observations, proxies=proxies)
+
+        assert isinstance(exc_info.value, RequestException)
+        assert not isinstance(exc_info.value, Urllib3TimeoutError)
+        assert observations['proxy_urls'] == [proxies['http']]
+        assert observations['connection_urls'] == ['http://example.test/']
+        assert len(observations['urlopen_calls']) == 1
 
 
 class TestTimeout:
