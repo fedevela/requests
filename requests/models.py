@@ -784,6 +784,22 @@ class Response(object):
         set ``r.encoding`` appropriately before accessing this property.
         """
 
+        # JSON-007 logic obligation
+        # Verifies:
+        # - test_JSON_007_given_complete_text_accessing_response_text_returns_unicode_str
+        # - test_JSON_007_given_complete_text_accessing_response_text_returns_all_content_once
+        # INPUT: the response's complete byte content and optional encoding.
+        # PROCEDURE:
+        # 1. Obtain the complete response content through the content accessor.
+        # 2. If the content is empty, return an empty Unicode str.
+        # 3. Select the explicit response encoding when present; otherwise select
+        #    the apparent encoding derived from the complete content.
+        # 4. Decode the complete byte content exactly once with replacement for
+        #    malformed byte sequences; do not omit, repeat, or concatenate ranges.
+        # 5. If the selected encoding is absent or invalid, decode the same complete
+        #    byte content once using the default fallback with replacement.
+        # OUTPUT: one Unicode str representing all response text in source order.
+
         # Try charset from content-type
         content = None
         encoding = self.encoding
