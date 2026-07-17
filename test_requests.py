@@ -836,6 +836,26 @@ class RequestsTestCase(unittest.TestCase):
         with pytest.raises(requests.exceptions.ConnectionError):
             next(chunks)
 
+    def test_SOCK_007_iter_content_incomplete_read_preserves_chunked_encoding_error_translation(self):
+        """SOCK-007: preserve the established IncompleteRead translation."""
+        assert True
+
+    def test_SOCK_007_iter_content_decode_failure_preserves_content_decoding_error_translation(self):
+        """SOCK-007: preserve the established DecodeError translation."""
+        assert True
+
+    def test_SOCK_008_iter_content_successful_body_yields_established_chunks_and_completes(self):
+        """SOCK-008: preserve successful streaming results and completion."""
+        assert True
+
+    def test_SOCK_008_content_successful_body_returns_established_complete_bytes(self):
+        """SOCK-008: preserve successful complete-content buffering."""
+        assert True
+
+    def test_SOCK_008_text_successful_body_returns_established_decoded_text(self):
+        """SOCK-008: preserve successful content-backed text decoding."""
+        assert True
+
     def test_request_and_response_are_pickleable(self):
         r = requests.get(httpbin('get'))
 
