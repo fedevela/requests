@@ -442,6 +442,14 @@ class Session(SessionRedirectMixin):
         # then hand it to Request for preparation and eventual transmission.
         # OUTPUT: the exact normalized HTTP method text, with all previously
         # valid method behavior unchanged.
+
+        # ARCHITECTURE — METHOD-001, METHOD-002, METHOD-003, METHOD-004:
+        # Session.request owns the caller-representation boundary. Compatibility
+        # primitives may distinguish binary from text here; Request and
+        # PreparedRequest retain ownership of established text normalization,
+        # and transport adapters receive only the prepared method. Dependency
+        # direction is compat -> sessions -> models -> adapters; downstream
+        # layers must not reinterpret the caller's binary method container.
         method = builtin_str(method)
 
         # Create the Request.
