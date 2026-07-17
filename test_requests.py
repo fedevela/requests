@@ -46,6 +46,48 @@ class RequestsTestCase(unittest.TestCase):
         """Teardown."""
         pass
 
+    def resolve_redirect_chain(self, method, statuses, data=None):
+        """Resolve an offline redirect chain and return the sent requests."""
+        class RawResponse(object):
+            def release_conn(self):
+                pass
+
+        def response(status_code, url, location=None):
+            redirect_response = requests.Response()
+            redirect_response.status_code = status_code
+            redirect_response.url = url
+            redirect_response.raw = RawResponse()
+            redirect_response._content = b''
+            if location is not None:
+                redirect_response.headers['location'] = location
+            return redirect_response
+
+        session = requests.Session()
+        request = requests.Request(
+            method, 'http://example.test/start', data=data).prepare()
+        responses = []
+        for index, status_code in enumerate(statuses):
+            redirect = response(
+                status_code,
+                'http://example.test/%s' % index,
+                '/%s' % (index + 1))
+            responses.append(redirect)
+        responses.append(response(
+            200, 'http://example.test/%s' % len(statuses)))
+        responses[0].request = request
+
+        sent_requests = []
+
+        def send(prepared_request, **kwargs):
+            sent_requests.append(prepared_request)
+            next_response = responses[len(sent_requests)]
+            next_response.request = prepared_request
+            return next_response
+
+        session.send = send
+        list(session.resolve_redirects(responses[0], request))
+        return sent_requests
+
     def test_entry_points(self):
 
         requests.session
@@ -120,15 +162,26 @@ class RequestsTestCase(unittest.TestCase):
 
     def test_REDIRECT_001_next_request_is_derived_from_immediately_preceding_request_after_method_conversion(self):
         """GUID: REDIRECT-001 -- preserve accumulated request state."""
-        assert True
+        requests_in_chain = self.resolve_redirect_chain(
+            'POST', [302, 307], data={'payload': 'value'})
+
+        assert requests_in_chain[0].body is None
+        assert requests_in_chain[1].body is None
+        assert 'Content-Length' not in requests_in_chain[1].headers
 
     def test_REDIRECT_003_method_preserving_redirect_keeps_immediately_preceding_effective_method(self):
         """GUID: REDIRECT-003 -- preserve the preceding effective method."""
-        assert True
+        requests_in_chain = self.resolve_redirect_chain('POST', [302, 307])
+
+        assert [request.method for request in requests_in_chain] == ['GET', 'GET']
 
     def test_REDIRECT_001_REDIRECT_003_multiple_method_transformations_never_restore_original_method(self):
         """GUID: REDIRECT-001, REDIRECT-003 -- never restore original state."""
-        assert True
+        requests_in_chain = self.resolve_redirect_chain(
+            'POST', [302, 307, 303, 307])
+
+        assert [request.method for request in requests_in_chain] == [
+            'GET', 'GET', 'GET', 'GET']
 
     # def test_HTTP_302_ALLOW_REDIRECT_POST(self):
     #     r = requests.post(httpbin('status', '302'), data={'some': 'data'})

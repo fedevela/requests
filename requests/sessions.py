@@ -212,6 +212,10 @@ class SessionRedirectMixin(object):
 
             extract_cookies_to_jar(self.cookies, prepared_request, resp.raw)
 
+            # REDIRECT-001, REDIRECT-003: advance the chain-local request
+            # cursor so the next redirect inherits this request's accumulated
+            # state, including any method conversion performed above.
+            req = prepared_request
             i += 1
             yield resp
 
