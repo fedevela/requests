@@ -642,7 +642,7 @@ class Response(object):
                 except DecodeError as e:
                     raise ContentDecodingError(e)
                 except socket.error as e:
-                    # SOCK-001, SOCK-002, SOCK-004, SOCK-005, SOCK-006
+                    # SOCK-001, SOCK-002, SOCK-003, SOCK-004, SOCK-005, SOCK-006
                     # Exception-boundary contract: iter_content owns transport
                     # error normalization; buffering consumers depend only on
                     # Requests exceptions yielded by this seam.
@@ -653,7 +653,7 @@ class Response(object):
                     try:
                         chunk = self.raw.read(chunk_size)
                     except socket.error as e:
-                        # SOCK-001, SOCK-002, SOCK-004, SOCK-005, SOCK-006
+                        # SOCK-001, SOCK-002, SOCK-003, SOCK-004, SOCK-005, SOCK-006
                         # Keep the file-like adapter behind the same normalized
                         # iterator contract as the urllib3 adapter above.
                         raise ConnectionError(e)
@@ -704,7 +704,7 @@ class Response(object):
     def content(self):
         """Content of the response, in bytes."""
 
-        # SOCK-002 architecture boundary: content owns the atomic buffer/commit
+        # SOCK-002, SOCK-003 architecture boundary: content owns the atomic buffer/commit
         # boundary and consumes iter_content's normalized-exception contract;
         # raw transport errors must not cross into this property.
         # SOCK-002 logic obligation:
@@ -750,6 +750,9 @@ class Response(object):
         set ``r.encoding`` appropriately before accessing this property.
         """
 
+        # SOCK-003 architecture boundary: text owns text decoding only and
+        # consumes content's complete-body/normalized-exception contract; it
+        # must not read from the transport stream or translate socket errors.
         # SOCK-003 logic obligation:
         # WHEN text is requested, obtain the complete body through the content
         # property before attempting encoding detection or text decoding.
