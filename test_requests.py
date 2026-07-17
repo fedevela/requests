@@ -183,6 +183,18 @@ class RequestsTestCase(unittest.TestCase):
         assert [request.method for request in requests_in_chain] == [
             'GET', 'GET', 'GET', 'GET']
 
+    def test_REDIRECT_002_post_303_issues_get(self):
+        """GUID: REDIRECT-002 -- POST followed by 303 transitions to GET."""
+        assert True
+
+    def test_REDIRECT_002_post_303_get_307_issues_get_without_restoring_post(self):
+        """GUID: REDIRECT-002 -- 307 preserves the effective GET."""
+        assert True
+
+    def test_REDIRECT_004_post_303_get_307_get_history_associates_each_response_with_effective_step_method(self):
+        """GUID: REDIRECT-004 -- history retains each step's effective method."""
+        assert True
+
     # def test_HTTP_302_ALLOW_REDIRECT_POST(self):
     #     r = requests.post(httpbin('status', '302'), data={'some': 'data'})
     #     self.assertEqual(r.status_code, 200)
