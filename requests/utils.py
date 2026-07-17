@@ -353,18 +353,13 @@ def get_encoding_from_headers(headers):
 
     content_type, params = cgi.parse_header(content_type)
 
-    # PSEUDOCODE — JSON-001, JSON-002 (charset-less JSON encoding contract):
-    # INPUT: the parsed media type and its optional charset parameter.
-    # IF an explicit charset exists, preserve the existing explicit-charset path.
-    # ELSE IF the media type is application/json, select the JSON Unicode default
-    # encoding and return it as the response encoding.
-    # HANDOFF: Response.iter_content(..., decode_unicode=True) and Response.text
-    # consume that same response encoding, so streamed items are Unicode strings
-    # and their ordered concatenation uses the same decoding policy as .text.
-    # ELSE continue through the existing non-JSON media-type decisions.
-
     if 'charset' in params:
         return params['charset'].strip("'\"")
+
+    # JSON-001, JSON-002: RFC 4627 defines UTF-8 as the default JSON encoding.
+    # Store it on the response so streaming and buffered text use one policy.
+    if content_type == 'application/json':
+        return 'utf-8'
 
     if 'text' in content_type:
         return 'ISO-8859-1'
@@ -375,19 +370,6 @@ def get_encoding_from_headers(headers):
 # transport iterator and response encoding, and consumes this seam lazily.
 def stream_decode_response_unicode(iterator, r):
     """Stream decodes a iterator."""
-
-    # PSEUDOCODE — JSON-003, JSON-006 (incremental Unicode stream contract):
-    # INPUT: a byte-chunk iterator and the response encoding selected upstream.
-    # IF no encoding is available, preserve the existing undecoded-stream path.
-    # ELSE initialize exactly one incremental decoder for the entire iterator.
-    # FOR each incoming byte chunk, feed it to that persistent decoder without
-    # finalizing it; retain incomplete multibyte sequences in decoder state.
-    # IF decoded text is non-empty, yield it immediately before requesting the
-    # next byte chunk, without waiting for the complete response body.
-    # AFTER iterator exhaustion, finalize the same decoder exactly once and
-    # yield any non-empty tail exactly once.
-    # FAILURE PATH: propagate decoder setup/input failures according to the
-    # decoder's configured error policy; never restart a decoder at a boundary.
 
     if r.encoding is None:
         for item in iterator:

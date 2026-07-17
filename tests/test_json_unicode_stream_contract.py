@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Traceability placeholders for JSON Unicode streaming requirements.
+"""Contract tests for JSON Unicode streaming requirements.
 
 JSON-001 maps to
 ``test_JSON_001_application_json_without_charset_decode_unicode_yields_only_str``.
@@ -12,27 +12,107 @@ JSON-006 maps to
 ``test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered``.
 """
 
+import io
+
+from requests.models import Response
+from requests.utils import get_encoding_from_headers
+
+
+JSON_TEXT = '{"message":"Olá, € and 雪"}'
+
+
+def buffered_json_response(text=JSON_TEXT):
+    response = Response()
+    response.headers['Content-Type'] = 'application/json'
+    response.encoding = get_encoding_from_headers(response.headers)
+    response._content = text.encode('utf-8')
+    response._content_consumed = True
+    return response
+
+
+def streamed_json_response(raw):
+    response = Response()
+    response.headers['Content-Type'] = 'application/json'
+    response.encoding = get_encoding_from_headers(response.headers)
+    response.raw = raw
+    return response
+
+
+class TrackingRaw(object):
+    """A transport iterator that exposes how many chunks were requested."""
+
+    def __init__(self, chunks):
+        self.chunks = chunks
+        self.chunks_requested = 0
+
+    def stream(self, chunk_size, decode_content=True):
+        for chunk in self.chunks:
+            self.chunks_requested += 1
+            yield chunk
+
 
 def test_JSON_001_application_json_without_charset_decode_unicode_yields_only_str():
     """JSON-001: decoding a charset-less JSON stream yields only Unicode str."""
-    assert True
+    response = buffered_json_response()
+
+    chunks = list(response.iter_content(2, decode_unicode=True))
+
+    assert response.encoding == 'utf-8'
+    assert chunks
+    assert all(isinstance(chunk, str) for chunk in chunks)
 
 
 def test_JSON_002_joined_decode_unicode_chunks_equal_response_text():
     """JSON-002: ordered decoded chunks reconstruct response.text exactly."""
-    assert True
+    response = buffered_json_response()
+
+    streamed_text = ''.join(response.iter_content(3, decode_unicode=True))
+
+    assert streamed_text == response.text
+    assert streamed_text == JSON_TEXT
 
 
 def test_JSON_003_transport_split_multibyte_character_is_preserved_exactly():
     """JSON-003: a transport-split multibyte character remains unchanged."""
-    assert True
+    response = streamed_json_response(TrackingRaw([
+        b'{"currency":"\xe2',
+        b'\x82',
+        b'\xac"}',
+    ]))
+
+    decoded = ''.join(response.iter_content(1024, decode_unicode=True))
+
+    assert decoded == '{"currency":"€"}'
+    assert decoded.count('€') == 1
 
 
 def test_JSON_003_requested_chunk_split_multibyte_character_is_preserved_exactly():
     """JSON-003: a chunk-size-split multibyte character remains unchanged."""
-    assert True
+    expected = '{"currency":"€"}'
+    encoded = expected.encode('utf-8')
+    first_euro_byte = encoded.index(b'\xe2')
+    response = streamed_json_response(io.BytesIO(encoded))
+
+    decoded = ''.join(response.iter_content(
+        first_euro_byte + 1, decode_unicode=True))
+
+    assert decoded == expected
+    assert decoded.count('€') == 1
 
 
 def test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered():
     """JSON-006: decoded text is observable before the full body is buffered."""
-    assert True
+    raw = TrackingRaw([
+        b'{"message":"ready',
+        b' now"}',
+    ])
+    response = streamed_json_response(raw)
+    chunks = response.iter_content(1024, decode_unicode=True)
+
+    first = next(chunks)
+
+    assert first == '{"message":"ready'
+    assert raw.chunks_requested == 1
+    assert response._content is False
+    assert response._content_consumed is False
+    assert first + ''.join(chunks) == '{"message":"ready now"}'
