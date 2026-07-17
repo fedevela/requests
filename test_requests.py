@@ -88,6 +88,41 @@ class RequestsTestCase(unittest.TestCase):
         list(session.resolve_redirects(responses[0], request))
         return sent_requests
 
+    def send_redirect_chain(self, method, statuses):
+        """Send an offline redirect chain through normal history assembly."""
+        class RawResponse(object):
+            def release_conn(self):
+                pass
+
+        class RedirectAdapter(object):
+            def __init__(self):
+                self.requests = []
+
+            def send(self, request, **kwargs):
+                self.requests.append(request)
+                response = requests.Response()
+                response.status_code = (
+                    statuses[len(self.requests) - 1]
+                    if len(self.requests) <= len(statuses) else 200)
+                response.url = request.url
+                response.request = request
+                response.raw = RawResponse()
+                response._content = b''
+                if response.status_code != 200:
+                    response.headers['location'] = '/%s' % len(self.requests)
+                return response
+
+            def close(self):
+                pass
+
+        session = requests.Session()
+        adapter = RedirectAdapter()
+        session.mount('http://', adapter)
+        request = requests.Request(
+            method, 'http://example.test/start').prepare()
+
+        return session.send(request), adapter.requests
+
     def test_entry_points(self):
 
         requests.session
@@ -185,15 +220,26 @@ class RequestsTestCase(unittest.TestCase):
 
     def test_REDIRECT_002_post_303_issues_get(self):
         """GUID: REDIRECT-002 -- POST followed by 303 transitions to GET."""
-        assert True
+        requests_in_chain = self.resolve_redirect_chain('POST', [303])
+
+        assert requests_in_chain[0].method == 'GET'
 
     def test_REDIRECT_002_post_303_get_307_issues_get_without_restoring_post(self):
         """GUID: REDIRECT-002 -- 307 preserves the effective GET."""
-        assert True
+        requests_in_chain = self.resolve_redirect_chain('POST', [303, 307])
+
+        assert [request.method for request in requests_in_chain] == [
+            'GET', 'GET']
 
     def test_REDIRECT_004_post_303_get_307_get_history_associates_each_response_with_effective_step_method(self):
         """GUID: REDIRECT-004 -- history retains each step's effective method."""
-        assert True
+        response, requests_in_chain = self.send_redirect_chain(
+            'POST', [303, 307])
+
+        assert [request.method for request in requests_in_chain] == [
+            'POST', 'GET', 'GET']
+        assert [history.request.method for history in response.history] == [
+            'POST', 'GET']
 
     # def test_HTTP_302_ALLOW_REDIRECT_POST(self):
     #     r = requests.post(httpbin('status', '302'), data={'some': 'data'})
