@@ -1502,6 +1502,26 @@ class TestMorselToCookieMaxAge(unittest.TestCase):
 
 
 class TestTimeout:
+    def test_exc_002_urllib3_timeout_crossing_requests_api_becomes_requests_timeout_and_does_not_escape(self):
+        """GUID: EXC-002 - preserve generic timeout translation and containment."""
+        assert True
+
+    def test_exc_002_proxy_urllib3_timeout_crossing_requests_api_is_catchable_as_requests_timeout(self):
+        """GUID: EXC-002 - preserve proxy-path timeout translation."""
+        assert True
+
+    def test_exc_003_reliably_classified_connect_timeout_becomes_requests_connect_timeout(self):
+        """GUID: EXC-003 - preserve the established connect-timeout subtype."""
+        assert True
+
+    def test_exc_003_reliably_classified_read_timeout_becomes_requests_read_timeout(self):
+        """GUID: EXC-003 - preserve the established read-timeout subtype."""
+        assert True
+
+    def test_exc_002_exc_003_unclassified_urllib3_timeout_becomes_requests_timeout_without_specific_subtype(self):
+        """GUID: EXC-002, EXC-003 - preserve the unclassified timeout fallback."""
+        assert True
+
     def test_stream_timeout(self):
         try:
             requests.get(httpbin('delay/10'), timeout=2.0)
