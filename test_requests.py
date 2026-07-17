@@ -7,6 +7,7 @@ from __future__ import division
 import json
 import os
 import pickle
+import socket
 import unittest
 import collections
 
@@ -742,19 +743,63 @@ class RequestsTestCase(unittest.TestCase):
 
     def test_SOCK_001_iter_content_connection_reset_before_first_chunk_raises_connection_error(self):
         """SOCK-001: hide a raw connection-reset socket error behind ConnectionError."""
-        assert True
+        class BrokenStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                raise socket.error(104, 'Connection reset by peer')
+                yield
+
+        response = requests.Response()
+        response.raw = BrokenStream()
+
+        with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
+            next(response.iter_content())
+
+        assert type(exc_info.value) is requests.exceptions.ConnectionError
 
     def test_SOCK_004_iter_content_translated_socket_error_preserves_recognizable_diagnostics(self):
         """SOCK-004: retain recognizable socket diagnostics after translation."""
-        assert True
+        failure = socket.error(104, 'Connection reset by peer')
+
+        class BrokenStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                raise failure
+                yield
+
+        response = requests.Response()
+        response.raw = BrokenStream()
+
+        with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
+            next(response.iter_content())
+
+        assert exc_info.value.args[0] is failure
+        assert 'Connection reset by peer' in str(exc_info.value)
 
     def test_SOCK_005_iter_content_raw_socket_error_raises_requests_connection_exception(self):
         """SOCK-005: consistently classify streaming socket errors in Requests."""
-        assert True
+        class BrokenFile(object):
+            def read(self, chunk_size):
+                raise socket.error(32, 'Broken pipe')
+
+        response = requests.Response()
+        response.raw = BrokenFile()
+
+        with pytest.raises(requests.exceptions.ConnectionError):
+            next(response.iter_content())
 
     def test_SOCK_006_iter_content_socket_error_after_chunks_raises_on_next_iteration(self):
         """SOCK-006: fail the next iteration after chunks instead of completing."""
-        assert True
+        class InterruptedStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                yield b'first chunk'
+                raise socket.error(104, 'Connection reset by peer')
+
+        response = requests.Response()
+        response.raw = InterruptedStream()
+        chunks = response.iter_content()
+
+        assert next(chunks) == b'first chunk'
+        with pytest.raises(requests.exceptions.ConnectionError):
+            next(chunks)
 
     def test_request_and_response_are_pickleable(self):
         r = requests.get(httpbin('get'))

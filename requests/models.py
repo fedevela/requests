@@ -9,6 +9,7 @@ This module contains the primary objects that power Requests.
 
 import collections
 import datetime
+import socket
 
 from io import BytesIO, UnsupportedOperation
 from .hooks import default_hooks
@@ -22,7 +23,7 @@ from .packages.urllib3.util import parse_url
 from .packages.urllib3.exceptions import DecodeError
 from .exceptions import (
     HTTPError, RequestException, MissingSchema, InvalidURL,
-    ChunkedEncodingError, ContentDecodingError)
+    ChunkedEncodingError, ContentDecodingError, ConnectionError)
 from .utils import (
     guess_filename, get_auth_from_url, requote_uri,
     stream_decode_response_unicode, to_key_val_list, parse_header_links,
@@ -631,28 +632,6 @@ class Response(object):
         available encoding based on the response.
         """
         def generate():
-            # ARCHITECTURE -- streamed-response transport failure boundary
-            # [SOCK-001, SOCK-005] Response.iter_content owns translation at
-            # both body-source seams below: raw.stream(...) and raw.read(...).
-            # The transport exception type is an inbound dependency only; the
-            # outward contract belongs to requests.exceptions.ConnectionError.
-            # [SOCK-004] The translation contract carries the captured socket
-            # exception as diagnostic input rather than defining a new wrapper.
-            # [SOCK-006] The generator boundary owns failure timing, so no
-            # adapter, session, or caller-level state/wiring is required.
-            # PSEUDOCODE -- response-body socket failure translation
-            # [SOCK-001, SOCK-005] WHEN advancing the active body source
-            # (urllib3 stream iterator or file-like read) raises socket.error:
-            #     CAPTURE the raw socket exception at this streaming boundary.
-            #     BUILD a requests.exceptions.ConnectionError classified as a
-            #     connection failure, using the captured exception as diagnostic
-            #     input so the raw socket exception is not exposed to the caller.
-            # [SOCK-004] PRESERVE recognizable underlying diagnostics (including
-            # the socket error number/message) in the translated exception.
-            # [SOCK-006] RAISE the translated exception from the same generator
-            # advancement that encountered the failure; this applies before the
-            # first yield and after any number of successful yields, and MUST NOT
-            # fall through to exhaustion, mark normal completion, or yield again.
             try:
                 # Special case for urllib3.
                 try:
@@ -662,10 +641,17 @@ class Response(object):
                     raise ChunkedEncodingError(e)
                 except DecodeError as e:
                     raise ContentDecodingError(e)
+                except socket.error as e:
+                    # SOCK-001, SOCK-004, SOCK-005, SOCK-006
+                    raise ConnectionError(e)
             except AttributeError:
                 # Standard file-like object.
                 while True:
-                    chunk = self.raw.read(chunk_size)
+                    try:
+                        chunk = self.raw.read(chunk_size)
+                    except socket.error as e:
+                        # SOCK-001, SOCK-004, SOCK-005, SOCK-006
+                        raise ConnectionError(e)
                     if not chunk:
                         break
                     yield chunk
