@@ -106,6 +106,17 @@ class SessionRedirectMixin(object):
         # OUTPUT: yield each response produced from its immediately preceding
         # request while preserving the accumulated effective method.
 
+        # ARCHITECTURE CONTRACT -- GUID: REDIRECT-001, REDIRECT-003
+        # SessionRedirectMixin.resolve_redirects owns the chain-local
+        # PreparedRequest cursor.  The loop boundary is the private integration
+        # seam: request copying and effective-method selection consume only the
+        # preceding iteration's request plus the current response, and the
+        # resulting PreparedRequest is the sole request passed to self.send.
+        # Dependency direction remains redirect iteration -> PreparedRequest
+        # transformation -> Session.send; the entry request must not become a
+        # dependency again after the chain-local cursor advances.  This stays
+        # internal to the existing generator and introduces no public API.
+
         i = 0
 
         while resp.is_redirect:
