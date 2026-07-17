@@ -694,6 +694,10 @@ class Response(object):
 
         chunks = reused_chunks if self._content_consumed else stream_chunks
 
+        # INTEGRATION SEAM — JSON-001, JSON-002, JSON-003, JSON-006:
+        # Response owns selection of the source byte iterator; requests.utils
+        # owns Unicode adaptation.  Keep this dependency lazy and one-way so
+        # decoding neither changes chunk acquisition nor buffers the body.
         if decode_unicode:
             chunks = stream_decode_response_unicode(chunks, self)
 

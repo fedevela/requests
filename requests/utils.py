@@ -336,6 +336,10 @@ def get_encodings_from_content(content):
             xml_re.findall(content))
 
 
+# ARCHITECTURE — JSON-001, JSON-002: this existing header utility owns the
+# media-type-to-response-encoding contract.  Response consumers share the
+# selected ``Response.encoding``; JSON policy must not be duplicated in either
+# ``Response.text`` or ``Response.iter_content``.
 def get_encoding_from_headers(headers):
     """Returns encodings from given HTTP Header Dict.
 
@@ -366,6 +370,9 @@ def get_encoding_from_headers(headers):
         return 'ISO-8859-1'
 
 
+# ARCHITECTURE — JSON-003, JSON-006: this private iterator adapter owns the
+# incremental byte-to-text boundary.  ``Response.iter_content`` supplies the
+# transport iterator and response encoding, and consumes this seam lazily.
 def stream_decode_response_unicode(iterator, r):
     """Stream decodes a iterator."""
 
