@@ -85,6 +85,27 @@ class SessionRedirectMixin(object):
                           verify=True, cert=None, proxies=None):
         """Receives a Response. Returns a generator of Responses."""
 
+        # PSEUDOCODE -- GUID: REDIRECT-001, REDIRECT-003
+        # INPUT: the response and prepared request that enter the redirect chain.
+        # STATE: set current_request to that entering request.
+        # FOR each redirect response, in chain order:
+        #   IF the redirect limit is exhausted, fail with TooManyRedirects
+        #   before dispatching another request.
+        #   derive next_request by copying current_request, never the entering
+        #   request again; this carries forward all accumulated request state.
+        #   set effective_method from current_request.method.
+        #   IF this response converts the method under existing redirect rules:
+        #       replace effective_method with the converted method.
+        #   ELSE (including a method-preserving redirect):
+        #       retain effective_method unchanged from current_request.
+        #   apply the existing URL, body, header, cookie, and auth transitions
+        #   to next_request, then send it and receive the next response.
+        #   transition current_request to next_request before the next iteration.
+        # FAILURE INVARIANT: no iteration may derive state or restore a method
+        # from the entering request after current_request has advanced.
+        # OUTPUT: yield each response produced from its immediately preceding
+        # request while preserving the accumulated effective method.
+
         i = 0
 
         while resp.is_redirect:
