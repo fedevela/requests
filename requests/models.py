@@ -148,6 +148,13 @@ class Request(object):
 
         hooks = hooks or {}
 
+        # Architecture ownership boundary:
+        # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
+        # Request construction owns normalization of constructor hook values
+        # while retaining the configured event name and input order.  Each
+        # normalized entry crosses the existing register_hook() seam; the
+        # constructor must not write entries directly to self.hooks or route
+        # this Request-local concern through Session or hook dispatch.
         # Constructor hook parsing pseudocode:
         # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
         # FOR EACH (event_name, configured_value) IN hooks IN mapping order:
@@ -479,6 +486,10 @@ class Request(object):
     def register_hook(self, event, hook):
         """Properly register a hook."""
 
+        # Registration boundary for constructor-normalized entries.
+        # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
+        # Request owns hook storage; callers preserve this method's existing
+        # event lookup, validation, failure, and append-order contract.
         self.hooks[event].append(hook)
 
     def deregister_hook(self, event, hook):
