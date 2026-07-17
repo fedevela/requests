@@ -1451,21 +1451,44 @@ class TestRedirects:
 
 class TestMethodNormalizationContract:
 
+    @staticmethod
+    def prepare_method_for_send(method):
+        session = requests.Session()
+        session.trust_env = False
+        session.send = lambda request, **kwargs: request
+        return session.request(method, 'http://example.com/')
+
     def test_METHOD_001_python3_binary_GET_when_normalized_and_sent_is_exact_GET_without_bytes_literal_markers(self):
         """GUID: METHOD-001 - Preserve the Python 3 binary-method contract."""
-        assert True
+        if not is_py3:
+            pytest.skip('METHOD-001 applies only to Python 3')
+
+        request = self.prepare_method_for_send(b'GET')
+
+        assert request.method == 'GET'
+        assert not request.method.startswith("b'")
+        assert not request.method.endswith("'")
 
     def test_METHOD_002_text_GET_when_normalized_and_sent_remains_exact_GET(self):
         """GUID: METHOD-002 - Preserve the ordinary text-method contract."""
-        assert True
+        request = self.prepare_method_for_send('GET')
+
+        assert request.method == 'GET'
 
     def test_METHOD_003_valid_method_when_normalized_and_sent_preserves_established_behavior(self):
         """GUID: METHOD-003 - Preserve established valid-method behavior."""
-        assert True
+        request = self.prepare_method_for_send('pAtCh')
+
+        assert request.method == 'PATCH'
 
     def test_METHOD_004_python2_binary_method_when_normalized_and_sent_preserves_established_behavior(self):
         """GUID: METHOD-004 - Preserve the Python 2 binary-method contract."""
-        assert True
+        if is_py3:
+            pytest.skip('METHOD-004 applies only to Python 2')
+
+        request = self.prepare_method_for_send(b'GET')
+
+        assert request.method == 'GET'
 
 
 @pytest.fixture
