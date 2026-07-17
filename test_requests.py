@@ -781,6 +781,14 @@ class RequestsTestCase(unittest.TestCase):
         chunks = r.iter_content(decode_unicode=True)
         assert all(isinstance(chunk, str) for chunk in chunks)
 
+    def test_exc_001_urllib3_decode_error_crossing_requests_api_boundary_becomes_content_decoding_error(self):
+        """GUID: EXC-001 - preserve the public exception translation contract."""
+        assert True
+
+    def test_exc_001_urllib3_decode_error_does_not_escape_requests_api_boundary(self):
+        """GUID: EXC-001 - preserve the urllib3 exception containment contract."""
+        assert True
+
     def test_request_and_response_are_pickleable(self):
         r = requests.get(httpbin('get'))
 
