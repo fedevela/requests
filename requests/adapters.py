@@ -434,7 +434,9 @@ class HTTPAdapter(BaseAdapter):
             raise ConnectionError(e, request=request)
 
         except ClosedPoolError as e:
-            raise ConnectionError(e, request=request)
+            error = ConnectionError(e, request=request)
+            error.message = e
+            raise error
 
         except _ProxyError as e:
             reason = e.args[1] if len(e.args) > 1 else None
