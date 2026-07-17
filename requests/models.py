@@ -642,7 +642,10 @@ class Response(object):
                 except DecodeError as e:
                     raise ContentDecodingError(e)
                 except socket.error as e:
-                    # SOCK-001, SOCK-004, SOCK-005, SOCK-006
+                    # SOCK-001, SOCK-002, SOCK-004, SOCK-005, SOCK-006
+                    # Exception-boundary contract: iter_content owns transport
+                    # error normalization; buffering consumers depend only on
+                    # Requests exceptions yielded by this seam.
                     raise ConnectionError(e)
             except AttributeError:
                 # Standard file-like object.
@@ -650,7 +653,9 @@ class Response(object):
                     try:
                         chunk = self.raw.read(chunk_size)
                     except socket.error as e:
-                        # SOCK-001, SOCK-004, SOCK-005, SOCK-006
+                        # SOCK-001, SOCK-002, SOCK-004, SOCK-005, SOCK-006
+                        # Keep the file-like adapter behind the same normalized
+                        # iterator contract as the urllib3 adapter above.
                         raise ConnectionError(e)
                     if not chunk:
                         break
@@ -699,6 +704,9 @@ class Response(object):
     def content(self):
         """Content of the response, in bytes."""
 
+        # SOCK-002 architecture boundary: content owns the atomic buffer/commit
+        # boundary and consumes iter_content's normalized-exception contract;
+        # raw transport errors must not cross into this property.
         # SOCK-002 logic obligation:
         # WHEN uncached response content is requested, consume every body chunk
         # into a staged buffer before assigning or returning buffered content.
