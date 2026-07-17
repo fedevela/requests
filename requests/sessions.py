@@ -166,6 +166,14 @@ class Session(object):
         hooks = {} if hooks is None else hooks
         prefetch = prefetch if prefetch is not None else self.prefetch
 
+        # Pseudocode -- GUID: HOOKS-004
+        # INPUT: request-scoped hook mapping plus the session hook defaults.
+        # FOR EACH hook event configured on the session:
+        #     IF the request omitted that event, carry the session's configured
+        #     callable or callable sequence forward as the event value;
+        #     OTHERWISE preserve the request-scoped event value unchanged.
+        # PRESERVE list-valued event configurations as collections during
+        # argument assembly; do not call the collection or discard entries.
         # use session's hooks as defaults
         for key, cb in list(self.hooks.items()):
             hooks.setdefault(key, cb)
@@ -227,6 +235,16 @@ class Session(object):
         # Arguments manipulation hook.
         args = dispatch_hook('args', args['hooks'], args)
 
+        # Pseudocode -- GUID: HOOKS-004
+        # HAND OFF the assembled hook mapping when constructing the Request.
+        # The Request makes every callable in each event collection available
+        # to the ordinary event-consumption path in its configured order.
+        # IF only construction was requested, return that Request with all
+        # configured callables available and perform no send.
+        # OTHERWISE send the same Request; at each applicable event, consume
+        # its callables individually and never attempt to invoke the list.
+        # IF construction, send, or an individual hook invocation fails,
+        # propagate the existing failure; no list-as-callable failure is added.
         # Create the (empty) response.
         r = Request(**args)
 
