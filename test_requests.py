@@ -20,9 +20,11 @@ from requests.compat import (
     Morsel, cookielib, getproxies, str, urljoin, urlparse, is_py3, builtin_str)
 from requests.cookies import cookiejar_from_dict, morsel_to_cookie
 from requests.exceptions import (ConnectionError, ConnectTimeout,
+                                 ContentDecodingError,
                                  InvalidSchema, InvalidURL, MissingSchema,
                                  ReadTimeout, Timeout, RetryError)
 from requests.models import PreparedRequest
+from requests.packages.urllib3.exceptions import DecodeError
 from requests.structures import CaseInsensitiveDict
 from requests.sessions import SessionRedirectMixin
 from requests.models import urlencode
@@ -783,11 +785,40 @@ class RequestsTestCase(unittest.TestCase):
 
     def test_exc_001_urllib3_decode_error_crossing_requests_api_boundary_becomes_content_decoding_error(self):
         """GUID: EXC-001 - preserve the public exception translation contract."""
-        assert True
+        decode_error = DecodeError('response content could not be decoded')
+        r = requests.Response()
+
+        class RawResponse(object):
+            def stream(self, chunk_size, decode_content):
+                assert chunk_size == 4
+                assert decode_content is True
+                yield b'data'
+                raise decode_error
+
+        r.raw = RawResponse()
+        chunks = r.iter_content(chunk_size=4)
+
+        assert next(chunks) == b'data'
+        with pytest.raises(ContentDecodingError) as exc_info:
+            next(chunks)
+
+        assert exc_info.value.args == (decode_error,)
+        assert r._content_consumed is False
 
     def test_exc_001_urllib3_decode_error_does_not_escape_requests_api_boundary(self):
         """GUID: EXC-001 - preserve the urllib3 exception containment contract."""
-        assert True
+        r = requests.Response()
+
+        class RawResponse(object):
+            def stream(self, chunk_size, decode_content):
+                raise DecodeError('response content could not be decoded')
+
+        r.raw = RawResponse()
+
+        with pytest.raises(ContentDecodingError) as exc_info:
+            next(r.iter_content())
+
+        assert not isinstance(exc_info.value, DecodeError)
 
     def test_request_and_response_are_pickleable(self):
         r = requests.get(httpbin('get'))
