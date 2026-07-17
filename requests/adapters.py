@@ -409,6 +409,20 @@ class HTTPAdapter(BaseAdapter):
                     low_conn.close()
                     raise
 
+        # GUID: EXC-002, EXC-003 - urllib3 timeout translation procedure.
+        # INPUT: a transport failure leaving the direct or proxy request path.
+        # SET timeout_failure to the caught failure; when retry exhaustion wraps
+        # a failure, inspect MaxRetryError.reason as timeout_failure instead.
+        # IF timeout_failure is reliably a urllib3 ConnectTimeoutError:
+        #     RAISE the established Requests ConnectTimeout with the request.
+        # ELSE IF timeout_failure is reliably a urllib3 ReadTimeoutError:
+        #     RAISE the established Requests ReadTimeout with the request.
+        # ELSE IF timeout_failure is any other urllib3 TimeoutError:
+        #     RAISE the generic Requests Timeout with the request.
+        # ELSE:
+        #     CONTINUE through the existing non-timeout translation branches.
+        # INVARIANT: proxy selection does not change this classification order,
+        # and no urllib3 TimeoutError subtype crosses the Requests API boundary.
         except (ProtocolError, socket.error) as err:
             raise ConnectionError(err, request=request)
 
