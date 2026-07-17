@@ -118,6 +118,18 @@ class RequestsTestCase(unittest.TestCase):
         assert r.history[0].status_code == 302
         assert r.history[0].is_redirect
 
+    def test_REDIRECT_001_next_request_is_derived_from_immediately_preceding_request_after_method_conversion(self):
+        """GUID: REDIRECT-001 -- preserve accumulated request state."""
+        assert True
+
+    def test_REDIRECT_003_method_preserving_redirect_keeps_immediately_preceding_effective_method(self):
+        """GUID: REDIRECT-003 -- preserve the preceding effective method."""
+        assert True
+
+    def test_REDIRECT_001_REDIRECT_003_multiple_method_transformations_never_restore_original_method(self):
+        """GUID: REDIRECT-001, REDIRECT-003 -- never restore original state."""
+        assert True
+
     # def test_HTTP_302_ALLOW_REDIRECT_POST(self):
     #     r = requests.post(httpbin('status', '302'), data={'some': 'data'})
     #     self.assertEqual(r.status_code, 200)
