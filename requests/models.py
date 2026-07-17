@@ -694,6 +694,11 @@ class Response(object):
 
         chunks = reused_chunks if self._content_consumed else stream_chunks
 
+        # OWNERSHIP BOUNDARY — GUID: JSON-004
+        # Response.iter_content owns the raw-byte pass-through contract.  The
+        # selected source iterator is the complete integration path when
+        # Unicode adaptation is disabled; no decoder dependency belongs on
+        # that path.
         # INTEGRATION SEAM — JSON-001, JSON-002, JSON-003, JSON-006:
         # Response owns selection of the source byte iterator; requests.utils
         # owns Unicode adaptation.  Keep this dependency lazy and one-way so
