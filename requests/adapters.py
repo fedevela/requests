@@ -413,23 +413,18 @@ class HTTPAdapter(BaseAdapter):
         except (ProtocolError, socket.error) as err:
             raise ConnectionError(err, request=request)
 
-        # ARCHITECTURE CONTRACT (EXC-004 through EXC-009): HTTPAdapter.send is
-        # the sole transport translation seam for direct, retried, and proxy
-        # urllib3 timeout failures. Preserve branch ordering and all neighboring
-        # exception ownership; shared boundary fixtures live in
-        # TestSharedExceptionBoundaryContracts.
         except MaxRetryError as e:
-            # GUID: EXC-003 - retain reliable timeout classification when
-            # urllib3 wraps the transport failure after exhausting retries.
-            if isinstance(e.reason, ConnectTimeoutError):
+            reason = e.reason
+            if isinstance(reason, _ProxyError) and len(reason.args) > 1:
+                reason = reason.args[1]
+
+            if isinstance(reason, ConnectTimeoutError):
                 raise ConnectTimeout(e, request=request)
 
-            if isinstance(e.reason, ReadTimeoutError):
+            if isinstance(reason, ReadTimeoutError):
                 raise ReadTimeout(e, request=request)
 
-            # GUID: EXC-002 - every other urllib3 timeout remains catchable
-            # through the public Requests timeout hierarchy.
-            if isinstance(e.reason, _TimeoutError):
+            if isinstance(reason, _TimeoutError):
                 raise Timeout(e, request=request)
 
             if isinstance(e.reason, ResponseError):
@@ -438,6 +433,13 @@ class HTTPAdapter(BaseAdapter):
             raise ConnectionError(e, request=request)
 
         except _ProxyError as e:
+            reason = e.args[1] if len(e.args) > 1 else None
+            if isinstance(reason, ConnectTimeoutError):
+                raise ConnectTimeout(e, request=request)
+            elif isinstance(reason, ReadTimeoutError):
+                raise ReadTimeout(e, request=request)
+            elif isinstance(reason, _TimeoutError):
+                raise Timeout(e, request=request)
             raise ProxyError(e)
 
         except (_SSLError, _HTTPError) as e:

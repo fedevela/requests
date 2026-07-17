@@ -43,13 +43,6 @@ class SSLError(ConnectionError):
     """An SSL error occurred."""
 
 
-# GUID: EXC-002, EXC-003, EXC-004, EXC-005, EXC-006 - Requests owns this
-# public timeout contract and its diagnostic, hierarchy, and termination
-# guarantees.
-# HTTPAdapter.send is the single translation seam for direct and proxy urllib3
-# failures: classified failures target the existing subclasses below, while
-# unclassified urllib3 timeouts target Timeout itself. The adapter, rather than
-# callers or vendored urllib3, owns selection of the public Requests type.
 class Timeout(RequestException):
     """The request timed out.
 
@@ -94,12 +87,6 @@ class ChunkedEncodingError(RequestException):
     """The server declared chunked encoding but sent an invalid chunk."""
 
 
-# GUID: EXC-001, EXC-004, EXC-005, EXC-006 - Requests owns this public
-# response-decoding contract and its diagnostic, hierarchy, and termination
-# guarantees.
-# Response.iter_content is the adapter seam from urllib3 DecodeError to this
-# exception; the vendored urllib3 layer remains independent of Requests and
-# callers need no dependency on its exception types.
 class ContentDecodingError(RequestException, BaseHTTPError):
     """Failed to decode response content"""
 
