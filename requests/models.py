@@ -149,11 +149,9 @@ class Request(object):
         hooks = hooks or {}
 
         for (k, v) in list(hooks.items()):
-            if isinstance(v, list):
-                for hook in v:
-                    self.register_hook(event=k, hook=hook)
-            else:
-                self.register_hook(event=k, hook=v)
+            hooks_for_event = v if isinstance(v, list) else [v]
+            for hook in hooks_for_event:
+                self.register_hook(event=k, hook=hook)
 
         #: Session.
         self.session = session
