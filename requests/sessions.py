@@ -174,6 +174,10 @@ class Session(object):
         #     OTHERWISE preserve the request-scoped event value unchanged.
         # PRESERVE list-valued event configurations as collections during
         # argument assembly; do not call the collection or discard entries.
+        # Configuration ownership boundary -- GUID: HOOKS-004
+        # Session owns request-over-session precedence and transports the
+        # selected event values unchanged. Request owns registration/storage;
+        # requests.hooks.dispatch_hook owns eventual collection traversal.
         # use session's hooks as defaults
         for key, cb in list(self.hooks.items()):
             hooks.setdefault(key, cb)
@@ -245,6 +249,9 @@ class Session(object):
         # its callables individually and never attempt to invoke the list.
         # IF construction, send, or an individual hook invocation fails,
         # propagate the existing failure; no list-as-callable failure is added.
+        # Request-construction integration seam -- GUID: HOOKS-004
+        # Dependency direction is Session assembly -> Request normalization ->
+        # dispatch_hook consumption; Session does not register or invoke hooks.
         # Create the (empty) response.
         r = Request(**args)
 

@@ -141,6 +141,10 @@ class Request(object):
         self.sent = False
 
         #: Event-handling hooks.
+        # Storage boundary -- GUID: HOOKS-002, HOOKS-004
+        # Request owns the normalized per-event callable collections received
+        # from direct construction or Session.request. Event consumers depend
+        # on dispatch_hook rather than interpreting these collections here.
         self.hooks = {}
 
         for event in HOOKS:
@@ -148,7 +152,11 @@ class Request(object):
 
         hooks = hooks or {}
 
-        # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
+        # Constructor integration seam -- GUID: HOOKS-001, HOOKS-002,
+        # HOOKS-003, HOOKS-004, HOOKS-005, HOOKS-006, HOOKS-008
+        # This is the sole mapping-to-registration boundary for both direct
+        # callers and Session.request; registration order remains owned by
+        # register_hook and consumption remains owned by dispatch_hook.
         for (k, v) in list(hooks.items()):
             if isinstance(v, list):
                 for hook in v:

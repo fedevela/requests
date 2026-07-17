@@ -32,6 +32,11 @@ HOOKS = ('args', 'pre_request', 'pre_send', 'post_request', 'response')
 def dispatch_hook(key, hooks, hook_data):
     """Dispatches a hook dictionary on a given piece of data."""
 
+    # Consumption boundary -- GUID: HOOKS-002, HOOKS-004
+    # This module owns event-value traversal. Upstream Session and Request
+    # objects supply hook mappings; neither may treat a collection as the
+    # executable hook. Request remains the owner of registered-hook storage.
+
     # Pseudocode -- GUID: HOOKS-002
     # INPUT: hook event name, configured event-to-hook mapping, event data.
     # NORMALIZE a missing mapping to an empty mapping.
