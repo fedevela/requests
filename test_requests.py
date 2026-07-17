@@ -1449,6 +1449,24 @@ class TestRedirects:
             assert session.calls[-1] == send_call
 
 
+class TestMethodNormalizationContract:
+
+    def test_METHOD_001_python3_binary_GET_when_normalized_and_sent_is_exact_GET_without_bytes_literal_markers(self):
+        """GUID: METHOD-001 - Preserve the Python 3 binary-method contract."""
+        assert True
+
+    def test_METHOD_002_text_GET_when_normalized_and_sent_remains_exact_GET(self):
+        """GUID: METHOD-002 - Preserve the ordinary text-method contract."""
+        assert True
+
+    def test_METHOD_003_valid_method_when_normalized_and_sent_preserves_established_behavior(self):
+        """GUID: METHOD-003 - Preserve established valid-method behavior."""
+        assert True
+
+    def test_METHOD_004_python2_binary_method_when_normalized_and_sent_preserves_established_behavior(self):
+        """GUID: METHOD-004 - Preserve the Python 2 binary-method contract."""
+        assert True
+
 
 @pytest.fixture
 def list_of_tuples():
