@@ -1451,6 +1451,15 @@ class TestRedirects:
 
 class TestMethodNormalizationContract:
 
+    # ARCHITECTURE — METHOD-005:
+    # This contract class owns automated evidence for binary and text method
+    # inputs.  prepare_method_for_send is the test-only integration seam from
+    # Session.request through PreparedRequest creation to the intercepted send
+    # boundary; the production normalization owners remain unchanged.  The
+    # sibling METHOD-005 cases receive the two input contracts, while supported
+    # Python-version selection and regression execution remain test-runner
+    # responsibilities rather than runtime dependencies.
+
     @staticmethod
     def prepare_method_for_send(method):
         session = requests.Session()
