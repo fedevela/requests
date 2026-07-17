@@ -131,6 +131,16 @@ class SessionRedirectMixin(object):
         # including POST, GET, GET across the reported initial response and
         # its two redirect steps.
 
+        # ARCHITECTURE CONTRACT -- GUID: REDIRECT-002
+        # SessionRedirectMixin.resolve_redirects owns effective-method
+        # evolution for the redirect chain.  Its private iteration seam accepts
+        # the current response and immediately preceding PreparedRequest, then
+        # supplies one copied PreparedRequest to Session.send.  Method selection
+        # must depend on that preceding request; a method-preserving response
+        # must not depend on the chain-entry request.  No new redirect-code
+        # policy or public method-transition interface belongs outside this
+        # existing generator boundary.
+
         # ARCHITECTURE CONTRACT -- GUID: REDIRECT-001, REDIRECT-003
         # SessionRedirectMixin.resolve_redirects owns the chain-local
         # PreparedRequest cursor.  The loop boundary is the private integration
@@ -593,6 +603,16 @@ class Session(SessionRedirectMixin):
         #   a history entry's request from the initial request or another step.
         # OUTPUT: inspecting each history response exposes the effective method
         # actually issued for that response's step.
+
+        # ARCHITECTURE CONTRACT -- GUID: REDIRECT-004
+        # HTTPAdapter.build_response owns Response.request association at the
+        # dispatch boundary.  SessionRedirectMixin.resolve_redirects transports
+        # those associated responses in chain order, and this Session.send block
+        # owns only final-response/history partitioning.  Dependency direction
+        # is adapter association -> redirect generator -> history assembly;
+        # assembly must preserve response identity and must not reconstruct or
+        # replace any step's PreparedRequest.  The contract remains internal to
+        # existing Response.request and Response.history structures.
 
         # Shuffle things around if there's history.
         if history:
