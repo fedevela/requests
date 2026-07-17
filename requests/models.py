@@ -631,6 +631,15 @@ class Response(object):
         available encoding based on the response.
         """
         def generate():
+            # ARCHITECTURE -- streamed-response transport failure boundary
+            # [SOCK-001, SOCK-005] Response.iter_content owns translation at
+            # both body-source seams below: raw.stream(...) and raw.read(...).
+            # The transport exception type is an inbound dependency only; the
+            # outward contract belongs to requests.exceptions.ConnectionError.
+            # [SOCK-004] The translation contract carries the captured socket
+            # exception as diagnostic input rather than defining a new wrapper.
+            # [SOCK-006] The generator boundary owns failure timing, so no
+            # adapter, session, or caller-level state/wiring is required.
             # PSEUDOCODE -- response-body socket failure translation
             # [SOCK-001, SOCK-005] WHEN advancing the active body source
             # (urllib3 stream iterator or file-like read) raises socket.error:
