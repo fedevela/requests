@@ -141,12 +141,6 @@ class Request(object):
         self.sent = False
 
         #: Event-handling hooks.
-        # Storage boundary -- GUID: HOOKS-002, HOOKS-004, HOOKS-007,
-        # HOOKS-009
-        # Request owns the normalized per-event callable collections received
-        # from construction and later direct registration. Both registration
-        # paths share this storage seam; event consumers depend on dispatch_hook
-        # rather than owning or rebuilding these collections.
         self.hooks = {}
 
         for event in HOOKS:
@@ -154,11 +148,6 @@ class Request(object):
 
         hooks = hooks or {}
 
-        # Constructor integration seam -- GUID: HOOKS-001, HOOKS-002,
-        # HOOKS-003, HOOKS-004, HOOKS-005, HOOKS-006, HOOKS-008
-        # This is the sole mapping-to-registration boundary for both direct
-        # callers and Session.request; registration order remains owned by
-        # register_hook and consumption remains owned by dispatch_hook.
         for (k, v) in list(hooks.items()):
             if isinstance(v, list):
                 for hook in v:
@@ -478,31 +467,6 @@ class Request(object):
     def register_hook(self, event, hook):
         """Properly register a hook."""
 
-        # Additive-registration ownership boundary -- GUID: HOOKS-007,
-        # HOOKS-009
-        # Request.register_hook is the sole mutation seam for constructor and
-        # legacy direct callers. Dependencies point from both callers into this
-        # boundary and onward to Request-owned hook storage; neither caller owns
-        # a competing replacement or merge boundary.
-        #
-        # Registration boundary for constructor-normalized entries.
-        # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
-        # Request owns hook storage; callers preserve this method's existing
-        # event lookup, validation, failure, and append-order contract.
-        #
-        # Additive-registration procedure -- GUID: HOOKS-007, HOOKS-009
-        # INPUT: an event name and one hook entry, supplied either by the
-        # constructor handoff above or by a later direct registration call.
-        # LOOK UP the existing mutable collection for event; IF event is not
-        # present, propagate the lookup failure without changing hook state.
-        # APPEND hook as a new entry to that existing collection; DO NOT
-        # replace, rebuild, or discard entries already present.
-        # AFTER constructor registration, a subsequent same-event call thus
-        # transitions [constructor entries] to [constructor entries, hook].
-        # ON every repeated direct call, transition the current collection to
-        # [all prior entries, hook], preserving separate entries and order.
-        # OUTPUT: self.hooks[event] contains every prior entry followed by the
-        # newly supplied entry; no other event collection is changed.
         self.hooks[event].append(hook)
 
     def deregister_hook(self, event, hook):
