@@ -698,6 +698,21 @@ class Response(object):
         # Response owns selection of the source byte iterator; requests.utils
         # owns Unicode adaptation.  Keep this dependency lazy and one-way so
         # decoding neither changes chunk acquisition nor buffers the body.
+        # PSEUDOCODE — GUID: JSON-004
+        # Logic obligations:
+        #   test_JSON_004_decode_unicode_false_yields_only_bytes
+        #   test_JSON_004_joined_raw_byte_chunks_equal_unmodified_response_content
+        # INPUT: chunks is the ordered byte iterator selected above from either
+        # the consumed-content cache or the live response stream.
+        # DECISION: IF decode_unicode is False:
+        #   FOR EACH raw byte chunk supplied by chunks, expose that same chunk
+        #   in the same order; do not decode, transcode, copy, or otherwise
+        #   transform its type or contents.
+        #   OUTPUT: every exposed value remains bytes, and concatenating all
+        #   exposed values reproduces the response content byte-for-byte.
+        #   FAILURE: preserve the validation and source-read failures raised
+        #   above; introduce no Unicode-decoding failure on this branch.
+        # ELSE: hand the iterator to the Unicode adaptation obligation below.
         if decode_unicode:
             chunks = stream_decode_response_unicode(chunks, self)
 
