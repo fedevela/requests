@@ -148,6 +148,22 @@ class Request(object):
 
         hooks = hooks or {}
 
+        # Constructor hook parsing pseudocode:
+        # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
+        # FOR EACH (event_name, configured_value) IN hooks IN mapping order:
+        #     IF configured_value IS a list:
+        #         FOR EACH hook IN configured_value IN listed order:
+        #             CALL register_hook(event_name, hook) individually
+        #             PRESERVE register_hook's existing validation and failure
+        #             behavior; IF it fails, PROPAGATE the failure unchanged
+        #         END FOR
+        #     ELSE:
+        #         CALL register_hook(event_name, configured_value) once to
+        #         preserve single-callable compatibility
+        #     END IF
+        #     NEVER register the list object itself, and NEVER substitute or
+        #     reuse an event name from another configuration entry
+        # END FOR
         for (k, v) in list(hooks.items()):
             self.register_hook(event=k, hook=v)
 
