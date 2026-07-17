@@ -653,6 +653,11 @@ class Response(object):
         def generate():
             # Special case for urllib3.
             if hasattr(self.raw, 'stream'):
+                # ARCHITECTURE CONTRACT (EXC-004 through EXC-009): this is the
+                # sole response-content translation seam. Keep stream state,
+                # chunk flow, and the neighboring established exception paths
+                # owned here; regression fixtures belong in
+                # TestSharedExceptionBoundaryContracts.
                 # GUID: EXC-001 - urllib3 decoding failure boundary logic.
                 # INPUT: request decoded chunks from the urllib3 response.
                 # FOR EACH successfully decoded chunk: yield it unchanged.

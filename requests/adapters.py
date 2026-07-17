@@ -413,6 +413,11 @@ class HTTPAdapter(BaseAdapter):
         except (ProtocolError, socket.error) as err:
             raise ConnectionError(err, request=request)
 
+        # ARCHITECTURE CONTRACT (EXC-004 through EXC-009): HTTPAdapter.send is
+        # the sole transport translation seam for direct, retried, and proxy
+        # urllib3 timeout failures. Preserve branch ordering and all neighboring
+        # exception ownership; shared boundary fixtures live in
+        # TestSharedExceptionBoundaryContracts.
         except MaxRetryError as e:
             # GUID: EXC-003 - retain reliable timeout classification when
             # urllib3 wraps the transport failure after exhausting retries.

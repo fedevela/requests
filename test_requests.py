@@ -1504,7 +1504,16 @@ class TestMorselToCookieMaxAge(unittest.TestCase):
 
 
 class TestSharedExceptionBoundaryContracts:
-    """Placeholder verification obligations for Issue #18."""
+    """Placeholder verification obligations for Issue #18.
+
+    Architecture locus (EXC-004 through EXC-009): this class owns shared
+    public-boundary regression coverage. Decode fixtures enter through
+    Response.iter_content; direct and proxy timeout fixtures enter through
+    HTTPAdapter.send. The production seams own translation, while this test
+    locus owns containment, diagnostics, termination, invariance, and unrelated
+    exception-path observations without introducing a production dependency on
+    vendored exception types.
+    """
 
     def test_exc_004_decode_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
         """GUID: EXC-004 - decode translation preserves the public hierarchy."""
