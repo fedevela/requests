@@ -758,7 +758,20 @@ class RequestsTestCase(unittest.TestCase):
 
     def test_SOCK_002_response_content_connection_reset_raises_connection_error_without_returning_partial_content_or_raw_socket_error(self):
         """SOCK-002: preserve the buffered-content failure contract."""
-        assert True
+        class InterruptedStream(object):
+            def stream(self, chunk_size, decode_content=True):
+                yield b'partial content'
+                raise socket.error(104, 'Connection reset by peer')
+
+        response = requests.Response()
+        response.raw = InterruptedStream()
+
+        with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
+            response.content
+
+        assert type(exc_info.value) is requests.exceptions.ConnectionError
+        assert response._content is False
+        assert response._content_consumed is False
 
     def test_SOCK_004_iter_content_translated_socket_error_preserves_recognizable_diagnostics(self):
         """SOCK-004: retain recognizable socket diagnostics after translation."""

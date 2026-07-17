@@ -725,7 +725,9 @@ class Response(object):
                 if self.status_code == 0:
                     self._content = None
                 else:
-                    self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+                    content = bytes().join(
+                        self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+                    self._content = content
 
             except AttributeError:
                 self._content = None
