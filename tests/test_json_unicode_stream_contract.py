@@ -20,6 +20,12 @@ from requests.utils import get_encoding_from_headers
 
 
 JSON_TEXT = '{"message":"Olá, € and 雪"}'
+RAW_CONTENT_CHUNKS = [
+    b'\x00{"payload":"\xff',
+    b'\x80\xfe",',
+    b'"tail":"\x00"}\r\n',
+]
+RAW_CONTENT = b''.join(RAW_CONTENT_CHUNKS)
 
 
 def buffered_json_response(text=JSON_TEXT):
@@ -103,12 +109,22 @@ def test_JSON_003_requested_chunk_split_multibyte_character_is_preserved_exactly
 
 def test_JSON_004_decode_unicode_false_yields_only_bytes():
     """JSON-004: disabling Unicode decoding yields only raw byte values."""
-    assert True
+    response = streamed_json_response(TrackingRaw(RAW_CONTENT_CHUNKS))
+
+    chunks = list(response.iter_content(3, decode_unicode=False))
+
+    assert chunks
+    assert all(isinstance(chunk, bytes) for chunk in chunks)
 
 
 def test_JSON_004_joined_raw_byte_chunks_equal_unmodified_response_content():
     """JSON-004: ordered raw-byte chunks preserve the response content."""
-    assert True
+    response = streamed_json_response(TrackingRaw(RAW_CONTENT_CHUNKS))
+
+    streamed_content = b''.join(
+        response.iter_content(3, decode_unicode=False))
+
+    assert streamed_content == RAW_CONTENT
 
 
 def test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered():
