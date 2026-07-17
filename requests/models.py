@@ -771,6 +771,10 @@ class Response(object):
         # since we exhausted the data.
         return self._content
 
+    # JSON-007 architecture boundary: Response owns the complete-body
+    # bytes-to-Unicode projection at ``text``.  This seam depends only on the
+    # sibling ``content`` and ``apparent_encoding`` properties; streaming and
+    # JSON parsing remain downstream consumers and must not own this contract.
     @property
     def text(self):
         """Content of the response, in unicode.
