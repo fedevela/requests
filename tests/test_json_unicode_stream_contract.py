@@ -27,6 +27,9 @@ RAW_CONTENT_CHUNKS = [
     b'"tail":"\x00"}\r\n',
 ]
 RAW_CONTENT = b''.join(RAW_CONTENT_CHUNKS)
+EXPLICIT_CHARSET = 'utf-16-le'
+EXPLICIT_CHARSET_TEXT = '{"message":"Zażółć gęślą jaźń — 雪"}'
+EXPLICIT_CHARSET_CONTENT = EXPLICIT_CHARSET_TEXT.encode(EXPLICIT_CHARSET)
 
 
 def buffered_json_response(text=JSON_TEXT):
@@ -38,9 +41,12 @@ def buffered_json_response(text=JSON_TEXT):
     return response
 
 
-def streamed_json_response(raw):
+def streamed_json_response(raw, charset=None):
     response = Response()
-    response.headers['Content-Type'] = 'application/json'
+    content_type = 'application/json'
+    if charset is not None:
+        content_type += '; charset=%s' % charset
+    response.headers['Content-Type'] = content_type
     response.encoding = get_encoding_from_headers(response.headers)
     response.raw = raw
     return response
@@ -130,12 +136,26 @@ def test_JSON_004_joined_raw_byte_chunks_equal_unmodified_response_content():
 
 def test_JSON_005_explicit_response_charset_decode_unicode_yields_only_str():
     """JSON-005: an explicit charset yields only decoded Unicode str."""
-    assert True
+    response = streamed_json_response(
+        io.BytesIO(EXPLICIT_CHARSET_CONTENT), EXPLICIT_CHARSET)
+
+    chunks = list(response.iter_content(3, decode_unicode=True))
+
+    assert response.encoding == EXPLICIT_CHARSET
+    assert chunks
+    assert all(isinstance(chunk, str) for chunk in chunks)
 
 
 def test_JSON_005_joined_decode_unicode_chunks_use_declared_charset():
     """JSON-005: joined chunks preserve text under the declared charset."""
-    assert True
+    response = streamed_json_response(
+        io.BytesIO(EXPLICIT_CHARSET_CONTENT), EXPLICIT_CHARSET)
+
+    streamed_text = ''.join(
+        response.iter_content(3, decode_unicode=True))
+
+    assert streamed_text == EXPLICIT_CHARSET_TEXT
+    assert streamed_text == EXPLICIT_CHARSET_CONTENT.decode(EXPLICIT_CHARSET)
 
 
 def test_JSON_006_decoded_str_is_yielded_before_complete_body_is_buffered():
