@@ -631,6 +631,10 @@ class Response(object):
         If decode_unicode is True, content will be decoded using the best
         available encoding based on the response.
         """
+        # SOCK-007, SOCK-008 architecture boundary: iter_content owns the raw
+        # response-body adapter. It is the only consumption layer that depends
+        # on raw-stream failure types; downstream consumers receive established
+        # Requests exceptions or established chunks through this iterator seam.
         # SOCK-007, SOCK-008 logic obligations -- response iteration:
         # INPUT: the existing raw response stream, requested chunk size, and
         # unicode-decoding choice.
@@ -717,6 +721,9 @@ class Response(object):
     def content(self):
         """Content of the response, in bytes."""
 
+        # SOCK-008 architecture boundary: content owns complete-body buffering
+        # and depends inward on iter_content's chunk/exception contract. It
+        # neither reads the raw stream directly nor owns text decoding.
         # SOCK-008 logic obligation -- successful complete-body buffering:
         # INPUT: the response's current content and consumption state.
         # IF content is not cached and has not already been consumed, consume
@@ -772,6 +779,9 @@ class Response(object):
         set ``r.encoding`` appropriately before accessing this property.
         """
 
+        # SOCK-008 architecture boundary: text owns character decoding and
+        # depends inward on content's complete-byte contract. Transport access,
+        # chunk iteration, and buffering remain outside this property.
         # SOCK-008 logic obligation -- successful text consumption:
         # INPUT: complete bytes obtained through content and the response's
         # existing encoding metadata.
