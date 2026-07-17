@@ -631,6 +631,19 @@ class Response(object):
         available encoding based on the response.
         """
         def generate():
+            # PSEUDOCODE -- response-body socket failure translation
+            # [SOCK-001, SOCK-005] WHEN advancing the active body source
+            # (urllib3 stream iterator or file-like read) raises socket.error:
+            #     CAPTURE the raw socket exception at this streaming boundary.
+            #     BUILD a requests.exceptions.ConnectionError classified as a
+            #     connection failure, using the captured exception as diagnostic
+            #     input so the raw socket exception is not exposed to the caller.
+            # [SOCK-004] PRESERVE recognizable underlying diagnostics (including
+            # the socket error number/message) in the translated exception.
+            # [SOCK-006] RAISE the translated exception from the same generator
+            # advancement that encountered the failure; this applies before the
+            # first yield and after any number of successful yields, and MUST NOT
+            # fall through to exhaustion, mark normal completion, or yield again.
             try:
                 # Special case for urllib3.
                 try:
