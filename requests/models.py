@@ -653,6 +653,17 @@ class Response(object):
         def generate():
             # Special case for urllib3.
             if hasattr(self.raw, 'stream'):
+                # GUID: EXC-001 - urllib3 decoding failure boundary logic.
+                # INPUT: request decoded chunks from the urllib3 response.
+                # FOR EACH successfully decoded chunk: yield it unchanged.
+                # ON urllib3 DecodeError:
+                #   STOP response-content iteration at the failure point.
+                #   TRANSLATE the failure to the existing Requests
+                #   ContentDecodingError, retaining the source failure.
+                #   RAISE the translated exception across the public iterator
+                #   boundary; NEVER expose the urllib3 DecodeError directly.
+                # STATE: preserve existing content-consumption semantics; only
+                # successful exhaustion marks the content consumed below.
                 try:
                     for chunk in self.raw.stream(chunk_size, decode_content=True):
                         yield chunk
