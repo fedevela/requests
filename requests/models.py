@@ -141,10 +141,12 @@ class Request(object):
         self.sent = False
 
         #: Event-handling hooks.
-        # Storage boundary -- GUID: HOOKS-002, HOOKS-004
+        # Storage boundary -- GUID: HOOKS-002, HOOKS-004, HOOKS-007,
+        # HOOKS-009
         # Request owns the normalized per-event callable collections received
-        # from direct construction or Session.request. Event consumers depend
-        # on dispatch_hook rather than interpreting these collections here.
+        # from construction and later direct registration. Both registration
+        # paths share this storage seam; event consumers depend on dispatch_hook
+        # rather than owning or rebuilding these collections.
         self.hooks = {}
 
         for event in HOOKS:
@@ -476,6 +478,13 @@ class Request(object):
     def register_hook(self, event, hook):
         """Properly register a hook."""
 
+        # Additive-registration ownership boundary -- GUID: HOOKS-007,
+        # HOOKS-009
+        # Request.register_hook is the sole mutation seam for constructor and
+        # legacy direct callers. Dependencies point from both callers into this
+        # boundary and onward to Request-owned hook storage; neither caller owns
+        # a competing replacement or merge boundary.
+        #
         # Registration boundary for constructor-normalized entries.
         # GUID: HOOKS-001, HOOKS-003, HOOKS-005, HOOKS-006, HOOKS-008
         # Request owns hook storage; callers preserve this method's existing
