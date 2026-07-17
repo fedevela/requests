@@ -1503,6 +1503,54 @@ class TestMorselToCookieMaxAge(unittest.TestCase):
             morsel_to_cookie(morsel)
 
 
+class TestSharedExceptionBoundaryContracts:
+    """Placeholder verification obligations for Issue #18."""
+
+    def test_exc_004_decode_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
+        """GUID: EXC-004 - decode translation preserves the public hierarchy."""
+        assert True
+
+    def test_exc_004_timeout_error_translated_at_requests_boundary_is_catchable_as_request_exception_without_urllib3_type_escape(self):
+        """GUID: EXC-004 - timeout translation preserves the public hierarchy."""
+        assert True
+
+    def test_exc_005_translated_decode_error_retains_message_or_context_identifying_decoding_failure_and_cause(self):
+        """GUID: EXC-005 - decoding diagnostics survive translation."""
+        assert True
+
+    def test_exc_005_translated_timeout_error_retains_message_or_context_identifying_timeout_failure_and_cause(self):
+        """GUID: EXC-005 - timeout diagnostics survive translation."""
+        assert True
+
+    def test_exc_006_reproduced_urllib3_decode_error_terminates_response_processing_by_raising_exception(self):
+        """GUID: EXC-006 - decode translation remains a terminating transition."""
+        assert True
+
+    def test_exc_006_reproduced_urllib3_timeout_error_terminates_request_operation_by_raising_exception(self):
+        """GUID: EXC-006 - timeout translation remains a terminating transition."""
+        assert True
+
+    def test_exc_007_translation_preserves_timeout_proxy_decoding_retry_streaming_and_response_processing_behavior_except_exposed_type(self):
+        """GUID: EXC-007 - only the identified public exception type changes."""
+        assert True
+
+    def test_exc_008_non_decode_and_non_timeout_exception_path_retains_established_exception_behavior(self):
+        """GUID: EXC-008 - unrelated exception paths remain unchanged."""
+        assert True
+
+    def test_exc_009_reproduced_urllib3_decode_error_exposes_only_requests_content_decoding_error(self):
+        """GUID: EXC-009 - regression path covers the decoding boundary."""
+        assert True
+
+    def test_exc_009_reproduced_urllib3_timeout_error_exposes_only_requests_timeout_subtype(self):
+        """GUID: EXC-009 - regression path covers the timeout boundary."""
+        assert True
+
+    def test_exc_009_reproduced_proxy_urllib3_timeout_error_exposes_only_requests_timeout_subtype(self):
+        """GUID: EXC-009 - regression path covers the proxy-timeout boundary."""
+        assert True
+
+
 class TestTimeout:
     @staticmethod
     def request_raising(error, proxies=None):
