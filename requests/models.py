@@ -750,6 +750,15 @@ class Response(object):
         set ``r.encoding`` appropriately before accessing this property.
         """
 
+        # SOCK-003 logic obligation:
+        # WHEN text is requested, obtain the complete body through the content
+        # property before attempting encoding detection or text decoding.
+        # IF body consumption encounters connection-reset socket.error, depend
+        # on the content/iterator boundary to discard staged bytes and raise
+        # ConnectionError; propagate it immediately, without decoding or
+        # returning partial text and without exposing the raw socket exception.
+        # OTHERWISE decode only the complete body and return the resulting text.
+
         # Try charset from content-type
         content = None
         encoding = self.encoding
